@@ -24,14 +24,15 @@ def cdft(x: NDArray[NumberType], fx: NDArray[NumberType], cutoff: int = 10):
     rx_at_zero = np.interp(0, x, rx)  # type: ignore
 
     first_two_gn = fft([np.ones_like(rx), rx / rx_at_zero])
-    gn: Iterator[NDArray[np.complexfloating]] = chain(first_two_gn, gen_self_n_circ_convolve(first_two_gn[1]))
+
+    circ_conv_coeff = gen_circ_conv_to_dft_coeff(first_two_gn[1].size)
+    gn: Iterator[NDArray[np.complexfloating]] = chain(
+        first_two_gn,
+        (coeff * gn for coeff, gn in zip(circ_conv_coeff, gen_self_n_circ_convolve(first_two_gn[1]))),
+    )
     gn_coeff = _gen_cdft_gn_coeff(rx_at_zero)
 
-    return (
-        np.exp(-fx_max)
-        * np.sum([next(gn_coeff) * next(gn) / (1 if i < 2 else rx.size ** (i - 2)) for i in range(cutoff + 1)], axis=0)
-        * dx
-    )
+    return np.exp(-fx_max) * np.sum([next(gn_coeff) * next(gn) for _ in range(cutoff + 1)], axis=0) * dx
 
 
 def is_linspaced_array(arr: NDArray) -> bool:
@@ -50,8 +51,16 @@ def gen_self_n_circ_convolve(fx: NDArray[NumberType]) -> Generator[NDArray[np.co
         raise ValueError("Input array must be one-dimensional.")
 
     res = fx
+
     while True:
-        yield (res := ifft(fft(res) * fft(fx)))
+        # Use FFT for computing circular convolution
+        res = ifft(fft(res) * fft(fx))
+
+        # Check if the result contains inf or nan
+        if not np.isfinite(res).all():
+            raise OverflowError("Overflow occurred during FFT computation")
+
+        yield res
 
 
 def _gen_cdft_gn_coeff(val: float):
@@ -59,3 +68,10 @@ def _gen_cdft_gn_coeff(val: float):
     while True:
         yield res
         res *= val / (n := n + 1)
+
+
+def gen_circ_conv_to_dft_coeff(n: int):
+    res = 1.0
+    while True:
+        res *= 1 / n
+        yield res
