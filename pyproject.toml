@@ -8,6 +8,8 @@ dependencies = [
     "h5py>=3.14.0",
     "matplotlib>=3.10.3",
     "numpy>=2.3.1",
+    "returns>=0.26.0",
+    "scipy>=1.16.1",
 ]
 
 [project.optional-dependencies]
