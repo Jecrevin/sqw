@@ -1,6 +1,9 @@
 import unittest
+from itertools import islice
+
 import numpy as np
-from app.math import arr_mul_dft
+
+from app.math import arr_mul_dft, gen_arr_self_n_mul_dft
 
 
 class TestFuncMulDFT(unittest.TestCase):
@@ -83,3 +86,43 @@ class TestFuncMulDFT(unittest.TestCase):
         res1_alias = arr_mul_dft(self.arr1_diff, self.arr2_diff, antialias=True)
         res2_alias = arr_mul_dft(self.arr2_diff, self.arr1_diff, antialias=True)
         np.testing.assert_allclose(res1_alias, res2_alias)
+
+
+class TestGenArrSelfNMulDFT(unittest.TestCase):
+    """Test suite for the gen_arr_self_n_mul_dft function."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.arr = np.array([1, 2, 3, 4])
+        self.n_items = 3
+
+    def test_raises_value_error_for_non_1d_array(self):
+        """Test that gen_arr_self_n_mul_dft raises ValueError for non-1D input."""
+        a_2d = np.array([[1, 2], [3, 4]])
+        with self.assertRaisesRegex(ValueError, "Input array must be 1-dimensional"):
+            next(gen_arr_self_n_mul_dft(a_2d))
+
+    def test_raises_value_error_for_unknown_method(self):
+        """Test that gen_arr_self_n_mul_dft raises ValueError for an unknown method."""
+        with self.assertRaisesRegex(ValueError, "Unknown method: invalid_method"):
+            next(gen_arr_self_n_mul_dft(self.arr, method="invalid_method"))  # type: ignore
+
+    def test_methods_are_equivalent(self):
+        """Test that 'direct' and 'convolve' methods produce similar results."""
+        direct_results = list(islice(gen_arr_self_n_mul_dft(self.arr, method="direct"), self.n_items))
+        for method in ["convolve", "convolve-fft"]:
+            with self.subTest(method=method):
+                conv_results = list(islice(gen_arr_self_n_mul_dft(self.arr, method=method), self.n_items))  # type: ignore
+                for i in range(self.n_items):
+                    np.testing.assert_allclose(direct_results[i], conv_results[i], atol=1e-9)
+
+    def test_direct_method_logic(self):
+        """Test the logic of the 'direct' method."""
+        results = list(islice(gen_arr_self_n_mul_dft(self.arr, method="direct"), self.n_items))
+        expected = [
+            np.fft.fft(self.arr),
+            np.fft.fft(self.arr * self.arr),
+            np.fft.fft(self.arr * self.arr * self.arr),
+        ]
+        for i in range(self.n_items):
+            np.testing.assert_allclose(results[i], expected[i])
