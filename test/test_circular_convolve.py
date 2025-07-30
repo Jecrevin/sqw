@@ -1,5 +1,7 @@
 import unittest
+
 import numpy as np
+
 from app.math import circular_convolve, gen_self_n_circ_convolve
 
 
@@ -96,7 +98,3 @@ class TestGenSelfNCircConvolve(unittest.TestCase):
                 c3 = next(gen)
                 expected_c3 = circular_convolve(expected_c2, arr, use_fft=use_fft)
                 np.testing.assert_allclose(c3, expected_c3)
-
-
-if __name__ == "__main__":
-    unittest.main()
