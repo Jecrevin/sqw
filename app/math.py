@@ -1,3 +1,4 @@
+import operator
 from collections.abc import Generator
 from itertools import accumulate, repeat
 from typing import Literal, TypeVar
@@ -159,13 +160,62 @@ def arr_mul_dft(
             raise ValueError(f"Unknown method: {method}")
 
 
+def gen_arr_self_n_mul_dft(
+    arr: NDArray[NumberType], method: ArrMulDFTMethod = "direct"
+) -> Generator[NDArray[np.complexfloating]]:
+    """
+    Generate successive DFTs of self-multiplied arrays.
+
+    This generator yields the Discrete Fourier Transform (DFT) of an array
+    multiplied by itself n times, for n = 1, 2, ... The computation method
+    can be chosen as direct multiplication in the time domain or via
+    convolution in the frequency domain.
+
+    Parameters
+    ----------
+    arr : NDArray[NumberType]
+        The 1-dimensional input array.
+    method : {'direct', 'convolve', 'convolve-fft'}, optional
+        The method to use for computation, by default "direct".
+        - 'direct': Computes the DFT of the array raised to the n-th power.
+        - 'convolve': Uses circular convolution of the DFTs.
+        - 'convolve-fft': Uses FFT for the convolution step.
+
+    Yields
+    ------
+    Generator[NDArray[np.complexfloating]]
+        A generator yielding the DFT of the array self-multiplied n times.
+
+    Raises
+    ------
+    ValueError
+        If the input array is not 1-dimensional, or if an unknown method is specified.
+    """
+    if arr.ndim != 1:
+        raise ValueError("Input array must be 1-dimensional")
+
+    match method:
+        case "direct":
+            yield from (np.fft.fft(nmul_arr) for nmul_arr in accumulate(repeat(arr), func=operator.mul))
+        case "convolve" | "convolve-fft":
+            yield from (
+                coeff * ncc
+                for coeff, ncc in zip(
+                    accumulate(repeat(1.0 / arr.size), operator.mul, initial=1.0),
+                    gen_self_n_circ_convolve(np.fft.fft(arr), use_fft=(method == "convolve-fft")),
+                )
+            )
+        case _:
+            raise ValueError(f"Unknown method: {method}")
+
+
 def func_mul_ft(
     fx: NDArray[NumberType],
     gx: NDArray[NumberType],
     dx: float,
     method: ArrMulDFTMethod = "direct",
     antialias: bool = True,
-):
+) -> NDArray[np.complexfloating]:
     """
     Compute the Fourier Transform of the product of two functions.
 
@@ -207,3 +257,63 @@ def func_mul_ft(
     `arr_mul_dft` : The underlying function that computes the DFT of the product of arrays.
     """
     return arr_mul_dft(fx, gx, method=method, antialias=antialias) * dx
+
+
+def gen_func_self_n_mul_ft(fx: NDArray[NumberType], dx: float, *, method: ArrMulDFTMethod = "direct"):
+    """
+    Generate successive Fourier Transforms of self-multiplied functions.
+
+    This generator yields the Fourier Transform of the product of a function
+    with itself n times, for n = 1, 2, ... The function is approximated by sampled
+    values in `fx`, and the sampling interval is `dx`.
+
+    Parameters
+    ----------
+    fx : NDArray[NumberType]
+        Sampled values of the function `f(x)`.
+    dx : float
+        The sampling interval in the x-domain.
+    method : {'direct', 'convolve', 'convolve-fft'}, optional
+        The method to use for computation, passed to `func_mul_ft`.
+        By default "direct".
+
+    Yields
+    ------
+    Generator[NDArray[np.complexfloating]]
+        A generator yielding the Fourier Transform of the function self-multiplied n times.
+
+    Notes
+    -----
+    This generator computes the Fourier Transform of `f(x) * f(x) * ... * f(x)`
+    (n times), where `f(x)` is represented by the sampled values in `fx`.
+
+    See Also
+    --------
+    `func_mul_ft` : The underlying function that computes the Fourier Transform
+    of the product of two functions.
+    """
+    yield from (ndft * dx for ndft in gen_arr_self_n_mul_dft(fx, method=method))
+
+
+def is_linspaced_array(arr: NDArray[NumberType]) -> bool:
+    """
+    Check if the input array is evenly spaced.
+
+    Parameters
+    ----------
+    arr : NDArray[NumberType]
+        The input array to check.
+
+    Returns
+    -------
+    bool
+        True if the array is evenly spaced, False otherwise.
+    """
+    if arr.ndim != 1:
+        raise ValueError("Input array must be 1-dimensional")
+
+    if arr.size <= 2:
+        return True
+
+    diff = np.diff(arr)
+    return np.allclose(diff, diff[0], atol=0)
