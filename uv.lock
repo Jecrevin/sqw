@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.13"
 
 [[package]]
@@ -139,7 +139,7 @@ wheels = [
 [[package]]
 name = "h2o-sqw-calc"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "h5py" },
     { name = "matplotlib" },
@@ -147,20 +147,21 @@ dependencies = [
     { name = "scipy" },
 ]
 
-[package.optional-dependencies]
-test = [
+[package.dev-dependencies]
+dev = [
     { name = "coverage" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "coverage", marker = "extra == 'test'", specifier = ">=7.10.3" },
     { name = "h5py", specifier = ">=3.14.0" },
     { name = "matplotlib", specifier = ">=3.10.5" },
     { name = "numpy", specifier = ">=2.3.2" },
     { name = "scipy", specifier = ">=1.16.1" },
 ]
-provides-extras = ["test"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "coverage", specifier = ">=7.10.3" }]
 
 [[package]]
 name = "h5py"

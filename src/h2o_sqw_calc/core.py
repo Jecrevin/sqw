@@ -61,8 +61,25 @@ def sqw_cdft(q: float, time_vec: NDArray, gamma: NDArray[np.complexfloating]):
         dw = omega[1] - omega[0]
         recur_res = _cdft(q / np.sqrt(2))
 
+        x_recur, y_recur = recur_res
+        y_abs = np.abs(y_recur)
+        threshold = np.max(y_abs) * 1e-9
+        significant_indices = np.where(y_abs > threshold)[0]
+
+        if significant_indices.size > 0:
+            start, end = significant_indices[0], significant_indices[-1] + 1
+            if start > 0 or end < x_recur.size:
+                x_recur = x_recur[start:end]
+                y_recur = y_recur[start:end]
+
+        # Ensure even length for convolution if needed, though self_linear_convolve might handle it.
+        # This is a good practice for some FFT-based algorithms.
+        if x_recur.size % 2 != 0:
+            x_recur = np.append(x_recur, x_recur[-1] + (x_recur[-1] - x_recur[-2]))
+            y_recur = np.append(y_recur, 0j)
+
         print(f"=> done with q = {q / np.sqrt(2):.2f}, now back to results for q = {q:.2f} ...")
 
-        return self_linear_convolve_x_axis(recur_res[0]), self_linear_convolve(recur_res[1], dw)
+        return self_linear_convolve_x_axis(x_recur), self_linear_convolve(y_recur, dw)
 
     return _cdft(q)
