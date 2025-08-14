@@ -48,38 +48,50 @@ def sqw_stc_model(
     )
 
 
+@cache
+def _sqw_cdft_recursive(
+    q: float, gamma_tuple: tuple, omega_tuple: tuple, dt: float, dw: float
+) -> tuple[NDArray, NDArray]:
+    gamma = np.array(gamma_tuple)
+    omega = np.array(omega_tuple)
+    print(f"Calculating CDFT recursively for q = {q:.2f} ...")
+
+    if q <= 5:
+        return omega, continuous_fourier_transform(np.exp(-(q**2) * gamma / 2), 1 / dt) / (2 * PI)
+
+    # 对 q 进行四舍五入以避免浮点精度问题导致缓存失效
+    next_q = round(q / np.sqrt(2), 8)
+    recur_res = _sqw_cdft_recursive(next_q, gamma_tuple, omega_tuple, dt, dw)
+
+    x_recur, y_recur = recur_res
+    y_abs = np.abs(y_recur)
+    threshold = np.max(y_abs) * 1e-9
+    significant_indices = np.where(y_abs > threshold)[0]
+
+    if significant_indices.size > 0:
+        start, end = significant_indices[0], significant_indices[-1] + 1
+        if start > 0 or end < x_recur.size:
+            x_recur = x_recur[start:end]
+            y_recur = y_recur[start:end]
+
+    # Ensure even length for convolution if needed, though self_linear_convolve might handle it.
+    # This is a good practice for some FFT-based algorithms.
+    if x_recur.size % 2 != 0:
+        x_recur = np.append(x_recur, x_recur[-1] + (x_recur[-1] - x_recur[-2]))
+        y_recur = np.append(y_recur, 0j)
+
+    print(f"=> done with q = {next_q:.2f}, now back to results for q = {q:.2f} ...")
+
+    return self_linear_convolve_x_axis(x_recur), self_linear_convolve(y_recur, dw)
+
+
 def sqw_cdft(q: float, time_vec: NDArray, gamma: NDArray[np.complexfloating]):
-    omega = np.fft.fftshift(np.fft.fftfreq(time_vec.size, (dt := time_vec[1] - time_vec[0]))) * 2 * PI
+    dt = time_vec[1] - time_vec[0]
+    omega = np.fft.fftshift(np.fft.fftfreq(time_vec.size, dt)) * 2 * PI
+    dw = omega[1] - omega[0]
 
-    @cache
-    def _cdft(q: float):
-        print(f"Calculating CDFT recursively for q = {q:.2f} ...")
+    # Convert arrays to tuples to make them hashable for the cache
+    gamma_tuple = tuple(gamma)
+    omega_tuple = tuple(omega)
 
-        if q <= 5:
-            return omega, continuous_fourier_transform(np.exp(-(q**2) * gamma / 2), 1 / dt) / (2 * PI)
-
-        dw = omega[1] - omega[0]
-        recur_res = _cdft(q / np.sqrt(2))
-
-        x_recur, y_recur = recur_res
-        y_abs = np.abs(y_recur)
-        threshold = np.max(y_abs) * 1e-9
-        significant_indices = np.where(y_abs > threshold)[0]
-
-        if significant_indices.size > 0:
-            start, end = significant_indices[0], significant_indices[-1] + 1
-            if start > 0 or end < x_recur.size:
-                x_recur = x_recur[start:end]
-                y_recur = y_recur[start:end]
-
-        # Ensure even length for convolution if needed, though self_linear_convolve might handle it.
-        # This is a good practice for some FFT-based algorithms.
-        if x_recur.size % 2 != 0:
-            x_recur = np.append(x_recur, x_recur[-1] + (x_recur[-1] - x_recur[-2]))
-            y_recur = np.append(y_recur, 0j)
-
-        print(f"=> done with q = {q / np.sqrt(2):.2f}, now back to results for q = {q:.2f} ...")
-
-        return self_linear_convolve_x_axis(x_recur), self_linear_convolve(y_recur, dw)
-
-    return _cdft(q)
+    return _sqw_cdft_recursive(q, gamma_tuple, omega_tuple, dt, dw)
