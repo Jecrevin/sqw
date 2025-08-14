@@ -15,6 +15,29 @@ This repository is a package based project, dependencies along with this project
 itself must be installed. You can install through your favourate tools, following
 the corresponding steps:
 
+### Dev Container (Recommended)
+
+This repository contains a pre-configured development container. If you are using
+VS Code with the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+or GitHub Codespaces, you can get a ready-to-use environment.
+
+When you open this folder in VS Code, it will suggest you to "Reopen in Container".
+By doing so, a Docker container will be built with all the necessary tools.
+This dev container has `uv` pre-installed and network mirrors configured for users
+in China. You can skip the `uv` installation step and directly use it to
+install dependencies and run programs.
+
+### [uv](https://docs.astral.sh/uv/#uv)
+
+> [!NOTE]
+> If you are using the Dev Container, `uv` is already installed and you can skip step 1.
+
+1. Install uv by folloing instructions at https://docs.astral.sh/uv/getting-started/installation/
+2. installing all dependencies by:
+```
+uv sync
+```
+
 ### pip
 
 1. Install pip by folling instructions at https://pip.pypa.io/en/stable/installation/.
@@ -29,14 +52,6 @@ source .venv/bin/activate
 pip install .
 ```
 
-### [uv](https://docs.astral.sh/uv/#uv)
-
-1. Install uv by folloing instructions at https://docs.astral.sh/uv/getting-started/installation/
-2. installing all dependencies by:
-```
-uv sync
-```
-
 ## 💻 Running
 
 This project now has 3 scripts can run dirrectly:
@@ -47,13 +62,12 @@ for small `Q`, and convolve from small `Q` result for large `Q`).
 - `plot_fft Q1 Q2 ...`: plot the SQW using direct FFT for following `Q` value.
 - `plot_gamma`: plot the gamma data for Hydrogen element (H).
 
-If you're using pip and alread followed the instructions above, now you can simply
-run these script dirrectly through your console. For example, if you want to see
+After setting up the environment, you can run these scripts. For example, if you want to see
 the comarison for CDFT and STC model at `Q = 40.0`, you can run:
 ```
 sqw 40.0
 ```
-For uv users, for the same example above you can run:
+If you are using `uv` (either installed manually or in the dev container), you can run:
 ```
 uv run sqw 40.0
 ```
