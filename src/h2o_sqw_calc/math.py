@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.typing import NDArray
+from scipy.signal import fftconvolve
 
 
 def linear_convolve[T: np.number](
@@ -22,7 +23,10 @@ def linear_convolve[T: np.number](
         The linear convolution of `fx` and `gx`, scaled by `dx`.
         The size of the output is `len(fx) + len(gx) - 1`.
     """
-    return np.convolve(fx, gx, mode="full") * dx
+    if fx.ndim != 1 or gx.ndim != 1:
+        raise ValueError("Input arrays must be one-dimensional.")
+
+    return fftconvolve(fx, gx, mode="full") * dx
 
 
 def self_linear_convolve[T: np.number](fx: NDArray[T], dx: float | np.floating) -> NDArray[np.complexfloating]:
