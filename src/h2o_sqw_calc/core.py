@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from functools import cache
 from typing import Final
 
@@ -51,18 +52,24 @@ def sqw_stc_model(
 
 @cache
 def _sqw_cdft_recursive(
-    q: float, gamma_tuple: tuple, omega_tuple: tuple, dt: float, dw: float
+    q: float,
+    gamma_tuple: tuple,
+    omega_tuple: tuple,
+    dt: float,
+    dw: float,
+    logger: Callable[[str], None] | None = None,
 ) -> tuple[NDArray, NDArray]:
+    """Helper function to calculate S(q, w) using CDFT with logging."""
     gamma = np.array(gamma_tuple)
     omega = np.array(omega_tuple)
-    print(f"Calculating CDFT recursively for q = {q:.2f} ...")
+    if logger:
+        logger(f"Calculating CDFT recursively for q = {q:.2f} ...")
 
     if q <= 5:
         return omega, continuous_fourier_transform(np.exp(-(q**2) * gamma / 2), 1 / dt) / (2 * PI)
 
-    # 对 q 进行四舍五入以避免浮点精度问题导致缓存失效
     next_q = round(q / np.sqrt(2), 8)
-    recur_res = _sqw_cdft_recursive(next_q, gamma_tuple, omega_tuple, dt, dw)
+    recur_res = _sqw_cdft_recursive(next_q, gamma_tuple, omega_tuple, dt, dw, logger)
 
     x_recur, y_recur = recur_res
     y_abs = np.abs(y_recur)
@@ -81,7 +88,8 @@ def _sqw_cdft_recursive(
         x_recur = np.append(x_recur, x_recur[-1] + (x_recur[-1] - x_recur[-2]))
         y_recur = np.append(y_recur, 0j)
 
-    print(f"=> done with q = {next_q:.2f}, now back to results for q = {q:.2f} ...")
+    if logger:
+        logger(f"=> done with q = {next_q:.2f}, now back to results for q = {q:.2f} ...")
 
     return self_linear_convolve_x_axis(x_recur), self_linear_convolve(y_recur, dw)
 
@@ -91,8 +99,7 @@ def sqw_cdft(q: float, time_vec: NDArray, gamma: NDArray[np.complexfloating]):
     omega = np.fft.fftshift(np.fft.fftfreq(time_vec.size, dt)) * 2 * PI
     dw = omega[1] - omega[0]
 
-    # Convert arrays to tuples to make them hashable for the cache
     gamma_tuple = tuple(gamma)
     omega_tuple = tuple(omega)
 
-    return _sqw_cdft_recursive(q, gamma_tuple, omega_tuple, dt, dw)
+    return _sqw_cdft_recursive(q, gamma_tuple, omega_tuple, dt, dw, logger=print)
