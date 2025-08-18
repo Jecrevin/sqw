@@ -53,12 +53,12 @@ def sqw_stc_model(
 @cache
 def _sqw_cdft_recursive(
     q: float,
-    gamma_tuple: tuple,
-    omega_tuple: tuple,
+    gamma_tuple: tuple[NDArray[np.complexfloating], ...],
+    omega_tuple: tuple[NDArray[np.floating], ...],
     dt: float,
     dw: float,
     logger: Callable[[str], None] | None = None,
-) -> tuple[NDArray, NDArray]:
+) -> tuple[NDArray[np.floating], NDArray[np.complexfloating]]:
     """Helper function to calculate S(q, w) using CDFT with logging."""
     gamma = np.array(gamma_tuple)
     omega = np.array(omega_tuple)
@@ -94,7 +94,12 @@ def _sqw_cdft_recursive(
     return self_linear_convolve_x_axis(x_recur), self_linear_convolve(y_recur, dw)
 
 
-def sqw_cdft(q: float, time_vec: NDArray, gamma: NDArray[np.complexfloating]):
+def sqw_cdft(
+    q: float,
+    time_vec: NDArray[np.floating],
+    gamma: NDArray[np.complexfloating],
+    logger: Callable[[str], None] | None = print,
+) -> tuple[NDArray[np.floating], NDArray[np.complexfloating]]:
     dt = time_vec[1] - time_vec[0]
     omega = np.fft.fftshift(np.fft.fftfreq(time_vec.size, dt)) * 2 * PI
     dw = omega[1] - omega[0]
@@ -102,4 +107,4 @@ def sqw_cdft(q: float, time_vec: NDArray, gamma: NDArray[np.complexfloating]):
     gamma_tuple = tuple(gamma)
     omega_tuple = tuple(omega)
 
-    return _sqw_cdft_recursive(q, gamma_tuple, omega_tuple, dt, dw, logger=print)
+    return _sqw_cdft_recursive(q, gamma_tuple, omega_tuple, dt, dw, logger=logger)
