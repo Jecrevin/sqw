@@ -15,9 +15,10 @@ dependencies = [
 ]
 
 [project.scripts]
-sqw = "h2o_sqw_calc.main:main"
-plot_fft = "h2o_sqw_calc.main:plot_fft"
-plot_gamma = "h2o_sqw_calc.main:plot_gamma"
+sqw = "h2o_sqw_calc.main:sqw"
+sqw-stack = "h2o_sqw_calc.main:sqw_stack"
+plot-fft = "h2o_sqw_calc.main:plot_fft"
+plot-gamma = "h2o_sqw_calc.main:plot_gamma"
 
 [build-system]
 requires = ["uv_build>=0.8.10,<0.9.0"]
