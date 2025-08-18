@@ -1,4 +1,5 @@
 from functools import cache
+from typing import Final
 
 import numpy as np
 import scipy.constants as consts
@@ -8,10 +9,10 @@ from scipy.constants import pi as PI
 from .math import continuous_fourier_transform, self_linear_convolve, self_linear_convolve_x_axis
 from .utils import flow
 
-HBAR: float = consts.value("reduced Planck constant in eV s")  # unit: eV·s
-KB: float = consts.value("Boltzmann constant in eV/K")  # unit: eV/K
-NEUTRON_MASS: float = (
-    consts.value("neutron mass energy equivalent in MeV") * consts.mega / (consts.c / consts.angstrom) ** 2
+HBAR: Final[float] = consts.value("reduced Planck constant in eV s")  # unit: eV·s
+KB: Final[float] = consts.value("Boltzmann constant in eV/K")  # unit: eV/K
+NEUTRON_MASS: Final[float] = (
+    consts.value(key="neutron mass energy equivalent in MeV") * consts.mega / (consts.c / consts.angstrom) ** 2
 )  # unit: eV/(Å/s)^2
 
 
