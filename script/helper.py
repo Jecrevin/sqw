@@ -38,7 +38,7 @@ def get_gamma_data(
         lambda file_path: [
             get_data_from_h5py(file_path, key) for key in ("time_vec", "gamma_qtm_real", "gamma_qtm_imag")
         ],
-        lambda data: data.append(get_data_from_h5py(file_path, "gamma_cls")) if include_classical else data,
+        lambda data: data + [get_data_from_h5py(file_path, "gamma_cls")] if include_classical else data,
         lambda data: [even_extend(arr) if (i + 1) % 2 == 0 else odd_extend(arr) for i, arr in enumerate(data)],
         lambda data: (data[0], data[1] + 1j * data[2]),
     )
