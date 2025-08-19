@@ -1,4 +1,7 @@
+from itertools import chain, zip_longest
+
 import numpy as np
+from matplotlib.artist import Artist
 from numpy.typing import NDArray
 
 from h2o_sqw_calc.io import get_data_from_h5py
@@ -33,4 +36,14 @@ def get_stc_model_data(
     return (
         get_data_from_h5py(file_path, f"inc_omega_{element}"),
         get_data_from_h5py(file_path, f"inc_vdos_{element}"),
+    )
+
+
+def reorder_legend_by_row(handles: list[Artist], labels: list[str], ncol: int) -> tuple[list[Artist], list[str]]:
+    """Reorders legend items to fill by row instead of by column."""
+    return flow(
+        (handles, labels, ncol),
+        lambda args: (zip_longest(*[iter(args[0])] * args[2]), zip_longest(*[iter(args[1])] * args[2])),
+        lambda items_by_col: (chain.from_iterable(zip(*col, strict=False)) for col in items_by_col),
+        lambda items_by_row: tuple([item for item in group if item is not None] for group in items_by_row),
     )
