@@ -21,4 +21,26 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "coverage>=7.10.4",
+    "ruff>=0.12.9",
 ]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    # general
+    "I",  # isort
+    "E",  # pycodestyle (error)
+    "F",  # pyflakes
+    "UP",  # pyupgrade
+    # more strict rules
+    "A",  # flake8-builtins
+    "B",  # flake8-bugbear
+    "FA",  # flake8-future-annotations
+    "C90",  # mccabe
+    "NPY",  # NumPy-specific rules
+]
+
+[tool.ruff.format]
+docstring-code-format = true
