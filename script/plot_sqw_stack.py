@@ -1,4 +1,5 @@
 import argparse
+import os
 from typing import Final
 
 import numpy as np
@@ -11,33 +12,107 @@ from h2o_sqw_calc.core import HBAR, sqw_cdft, sqw_stc_model
 from h2o_sqw_calc.utils import flow
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Plot heatmap of S(Q, w) over a range of Q values.")
-    parser.add_argument("--start", type=float, default=1, help="Start Q value (default: 1)")
-    parser.add_argument("--end", type=float, default=80, help="End Q value (default: 80)")
-    parser.add_argument("--step", type=float, default=1, help="Step size for Q values (default: 1)")
-    args = parser.parse_args()
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Plot S(q, w) function obtained by CDFT for a range of Momentum "
+        "Transfer values [Q_START-Q_END] stacking together.",
+    )
+    parser.add_argument(
+        "q-range",
+        type=str,
+        help="The range of Momentum Transfer values in Angstrom^-1 for which to "
+        "plot the S(q, w) function obtained by CDFT. ",
+    )
+    parser.add_argument(
+        "--step",
+        type=float,
+        default=5.0,
+        help="Step size for the range of momentum transfer values (default: 1.0 Angstrom^-1). "
+        "This is only used if a range is specified in the q argument.",
+    )
+    parser.add_argument(
+        "-e",
+        "--element",
+        type=str,
+        default="H",
+        help="Element symbol for which to plot the S(q, w) function (default: H).",
+    )
+    parser.add_argument(
+        "-gamma",
+        "--gamma-file-path",
+        type=str,
+        default="data/last_{element}.gamma",
+        help="format string for the path to the hdf5 file containing the gamma data "
+        "(default: data/last_{element}.gamma).",
+    )
+    parser.add_argument(
+        "-stc",
+        "--stc-file-path",
+        type=str,
+        default="data/last.sqw",
+        help="file path for the hdf5 file containing the STC model data (default: data/last.sqw).",
+    )
+    parser.add_argument(
+        "-t",
+        "--temperature",
+        type=float,
+        default=293.0,
+        help="Temperature in Kelvin for the STC model calculation (default: 293 K).",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        nargs="?",
+        const="fig/sqw_comparison_plot.png",
+        type=str,
+        help="Output file name for the plot (default: fig/sqw_comparison_plot.png).",
+    )
+    parser.add_argument(
+        "--energy-unit",
+        action="store_true",
+        help="Use energy units for the x axis of output plot (default: False, uses angular frequency).",
+    )
+    return parser.parse_args()
 
-    ELEMENT: Final[str] = "H"
-    T: Final[float] = 293  # unit: K
-    Q_START: Final[float] = args.start  # unit: 1/angstrom
-    Q_END: Final[float] = args.end  # unit: 1/angstrom
-    Q_STEP: Final[float] = args.step  # unit: 1/angstrom
+
+def main():
+    args = parse_args()
+
+    ELEMENT: Final[str] = args.element
+    T: Final[float] = args.temperature  # unit: K
+    GAMMA_FILE_PATH: Final[str] = args.gamma_file_path.format(element=ELEMENT)
+    STC_FILE_PATH: Final[str] = args.stc_file_path
+    OUTPUT: Final[str | None] = args.output
+    ENERGY_UNIT: Final[bool] = args.energy_unit
+
+    Q_START, Q_END = map(float, getattr(args, "q-range").split("-"))
+    Q_STEP: Final[float] = args.step
+
+    print(f"Loading STC model data from {STC_FILE_PATH}...")
 
     freq_dos, dos = get_stc_model_data(ELEMENT)
+
+    print("STC model data loaded successfully!")
+    print(f"Loading gamma data from {GAMMA_FILE_PATH}...")
+
     time, gamma = get_gamma_data(ELEMENT)
+
+    print("Gamma data loaded successfully!")
+    print("Calculating CDFT S(Q, w) values...")
+
     dw = 2 * np.pi / np.diff(time).mean() / time.size
 
     q_vals: tuple[float, ...]
     omega_vals: tuple[NDArray[np.float64], ...]
     sqw_vals: tuple[NDArray[np.complex128], ...]
     q_vals, omega_vals, sqw_vals = flow(
-        np.arange(Q_START, Q_END + Q_STEP, Q_STEP),
-        lambda q_ruange: [(q, *sqw_cdft(q, time, gamma)) for q in q_ruange],
-        lambda results: zip(*results),
+        np.linspace(Q_START, Q_END, int((Q_END - Q_START) / Q_STEP), endpoint=False),
+        lambda q_range: [(q, *sqw_cdft(q, time, gamma)) for q in q_range],
+        lambda results: zip(*results, strict=False),
     )
 
-    print("All done!")
+    print("CDFT S(Q, w) values calculated successfully!")
+    print("Interpolating S(Q, w) values on a common frequency grid...")
 
     omega: NDArray[np.float64] = flow(
         omega_vals,
@@ -46,16 +121,16 @@ def main():
         lambda minmax: np.linspace(minmax[0], minmax[1], int((minmax[1] - minmax[0]) / dw) + 1),
     )
 
-    print("Interpolating S(Q, w) values...")
-
     sqw = np.stack(
         flow(
             (sqw_vals, omega_vals),
             lambda sqw_omega: map(lambda sqw_val, omega_val: np.interp(omega, omega_val, sqw_val), *sqw_omega),
-            # lambda sqw_interp: map(lambda sqw: (sqw - sqw.min()) / (sqw.max() - sqw.min()), sqw_interp),
-            lambda sqw_norm: list(sqw_norm),
+            lambda sqw: list(sqw),
         ),
     )
+
+    print("S(Q, w) values interpolated successfully!")
+    print("Getting max point of  STC Model...")
 
     stc_max = np.array(
         [
@@ -68,24 +143,38 @@ def main():
         ]
     )
 
-    print("Done!")
-    print("Plotting heatmap...")
+    print("Max points of STC Model obtained successfully!")
+    print("Plotting results...")
 
-    plt.imshow(
+    plt.figure(figsize=(10, 8), layout="constrained")
+    plt.pcolormesh(
+        q_vals,
+        omega * HBAR if ENERGY_UNIT else omega,
         np.abs(sqw.T),
-        aspect="auto",
-        extent=(Q_START, Q_END, omega[0] * HBAR, omega[-1] * HBAR),
-        origin="lower",
-        cmap="magma",
+        shading="auto",
+        cmap="viridis",
         norm=LogNorm(),
     )
-    plt.plot(q_vals, stc_max * HBAR, linestyle="--")
-    plt.xlabel("Q (1/Å)")
-    plt.ylabel("Energy (eV)")
-    plt.title("Heatmap of S(Q, w) for H2O")
-    plt.colorbar(label="S(Q, w) [arbitrary units]")
+    plt.plot(q_vals, stc_max * HBAR if ENERGY_UNIT else stc_max, color="red", label="STC Model Max", linestyle="--")
+    plt.title(f"S(Q, w) for {ELEMENT} at {T} K")
+    plt.xlabel("Momentum Transfer (Q) [Angstrom^-1]")
+    plt.ylabel("Energy (eV)" if ENERGY_UNIT else "Angular Frequency (rad/s)")
+    plt.ylim(bottom=(-10 if ENERGY_UNIT else -10 / HBAR))
+    plt.colorbar(label="S(Q, w)")
+    plt.legend(loc="lower right", bbox_to_anchor=(1.05, 0.99))
     plt.grid()
-    plt.show()
+
+    if OUTPUT:
+        if output_dir := os.path.dirname(OUTPUT):
+            os.makedirs(output_dir, exist_ok=True)
+        plt.savefig(OUTPUT)
+        print(f"Plot saved to {OUTPUT}")
+    else:
+        print("Displaying plot interactively.")
+        plt.show()
+
+    print("Plotting complete.")
+    print("Program completed successfully.")
 
 
 if __name__ == "__main__":
