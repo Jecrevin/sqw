@@ -59,6 +59,11 @@ def main():
     print("Plotting complete.")
 
     if OUTPUT:
+        if os.path.exists(OUTPUT):
+            choice = input(f"File '{OUTPUT}' already exists. Overwrite? (y/N): ").lower()
+            if choice != "y":
+                print("Aborted.")
+                return
         if output_dir := os.path.dirname(OUTPUT):
             os.makedirs(output_dir, exist_ok=True)
         plt.savefig(OUTPUT)

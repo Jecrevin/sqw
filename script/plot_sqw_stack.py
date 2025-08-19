@@ -63,9 +63,9 @@ def parse_args() -> argparse.Namespace:
         "-o",
         "--output",
         nargs="?",
-        const="fig/sqw_comparison_plot.png",
+        const="fig/sqw_stack_plot.png",
         type=str,
-        help="Output file name for the plot (default: fig/sqw_comparison_plot.png).",
+        help="Output file name for the plot (default: fig/sqw_stack_plot.png).",
     )
     parser.add_argument(
         "--energy-unit",
@@ -165,6 +165,11 @@ def main():
     plt.grid()
 
     if OUTPUT:
+        if os.path.exists(OUTPUT):
+            choice = input(f"File '{OUTPUT}' already exists. Overwrite? (y/N): ").lower()
+            if choice != "y":
+                print("Aborted.")
+                return
         if output_dir := os.path.dirname(OUTPUT):
             os.makedirs(output_dir, exist_ok=True)
         plt.savefig(OUTPUT)
