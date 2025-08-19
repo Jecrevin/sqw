@@ -1,4 +1,5 @@
 import argparse
+import os
 from typing import Final
 
 import numpy as np
@@ -6,7 +7,7 @@ from helper import get_gamma_data, get_stc_model_data, reorder_legend_by_row
 from matplotlib import pyplot as plt
 from numpy.typing import NDArray
 
-from h2o_sqw_calc.core import sqw_cdft, sqw_stc_model
+from h2o_sqw_calc.core import HBAR, sqw_cdft, sqw_stc_model
 
 
 def parse_args() -> argparse.Namespace:
@@ -21,6 +22,13 @@ def parse_args() -> argparse.Namespace:
         type=str,
         help="Momentum Transfer values in Angstrom^-1 for which to plot the S(q, w) function obtained by CDFT. "
         "Can be a list of numbers or a range in 'start-end' format.",
+    )
+    parser.add_argument(
+        "--step",
+        type=float,
+        default=1.0,
+        help="Step size for the range of momentum transfer values (default: 1.0 Angstrom^-1). "
+        "This is only used if a range is specified in the q argument.",
     )
     parser.add_argument(
         "-e",
@@ -59,6 +67,11 @@ def parse_args() -> argparse.Namespace:
         type=str,
         help="Output file name for the plot (default: fig/sqw_comparison_plot.png).",
     )
+    parser.add_argument(
+        "--energy-unit",
+        action="store_true",
+        help="Use energy units for the x axis of output plot (default: False, uses angular frequency).",
+    )
     return parser.parse_args()
 
 
@@ -66,15 +79,16 @@ def main():
     args = parse_args()
 
     ELEMENT: Final[str] = args.element
-    T: Final[float] = args.temperature  # unit: K
+    ENERGY_UNIT: Final[bool] = args.energy_unit
     GAMMA_FILE_PATH: Final[str] = args.gamma_file_path.format(element=ELEMENT)
-    STC_FILE_PATH: Final[str] = args.stc_file_path
     OUTPUT: Final[str | None] = args.output
+    STC_FILE_PATH: Final[str] = args.stc_file_path
+    T: Final[float] = args.temperature  # unit: K
 
     q_str_vals: list[str] = args.q
     if len(q_str_vals) == 1 and "-" in q_str_vals[0]:
         start_q, end_q = map(float, q_str_vals[0].split("-"))
-        q_values: NDArray[np.float64] = np.arange(start_q, end_q + 1e-5, 1.0, dtype=np.float64)
+        q_values: NDArray[np.float64] = np.arange(start_q, end_q + args.step / 2, args.step, dtype=np.float64)
     else:
         q_values: NDArray[np.float64] = np.array(q_str_vals, dtype=np.float64)
 
@@ -106,17 +120,20 @@ def main():
 
     plt.figure(figsize=(8, 6), layout="constrained")
     for q, omega, sqw, stc_sqw in zip(q_values, omega_vals, sqw_vals, stc_sqw_vals, strict=True):
-        (stc_line,) = plt.plot(omega, stc_sqw, label=f"q = {q:.2f}: STC Model")
-        plt.plot(omega, np.abs(sqw), label="CDFT Model", linestyle=":", color=stc_line.get_color())
-    plt.xlabel("Angular Frequency (rad/s)")
+        x = omega * HBAR if ENERGY_UNIT else omega
+        (stc_line,) = plt.plot(x, stc_sqw, label=f"q = {q:.2f}: STC Model")
+        plt.plot(x, np.abs(sqw), label="CDFT Model", linestyle=":", color=stc_line.get_color())
+    plt.xlabel("Energy (eV)" if ENERGY_UNIT else "Angular Frequency (rad/s)")
     plt.ylabel("S(q, w)")
     plt.title(f"S(q, w) Comparison for Element: {ELEMENT}")
     plt.grid()
-    plt.legend(*reorder_legend_by_row(*plt.gca().get_legend_handles_labels(), 2), ncol=2, loc="upper left")
+    plt.legend(*reorder_legend_by_row(*plt.gca().get_legend_handles_labels(), ncol=2), ncol=2, loc="upper left")
 
     print("Plotting complete.")
 
     if OUTPUT:
+        if output_dir := os.path.dirname(OUTPUT):
+            os.makedirs(output_dir, exist_ok=True)
         plt.savefig(OUTPUT)
         print(f"Plot saved to {OUTPUT}")
     else:

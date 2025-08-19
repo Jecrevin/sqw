@@ -1,4 +1,5 @@
 import argparse
+import os
 from typing import Final, Literal
 
 import matplotlib.pyplot as plt
@@ -122,6 +123,8 @@ def main():
         plt.legend()
 
     if OUTPUT:
+        if output_dir := os.path.dirname(OUTPUT):
+            os.makedirs(output_dir, exist_ok=True)
         plt.savefig(OUTPUT)
         print(f"Plot saved to {OUTPUT}")
     else:
