@@ -2,41 +2,128 @@ import argparse
 from typing import Final
 
 import numpy as np
-from helper import get_gamma_data, get_stc_model_data
+from helper import get_gamma_data, get_stc_model_data, reorder_legend_by_row
 from matplotlib import pyplot as plt
+from numpy.typing import NDArray
 
 from h2o_sqw_calc.core import sqw_cdft, sqw_stc_model
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Compare CDFT and STC model results for a given Q value.")
-    parser.add_argument("q-value", type=float, help="Q value")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Plot S(q, w) comparison between CDFT and STC model for given Momentum Transfer values [Q1, Q2, ...]."
+        )
+    )
+    parser.add_argument(
+        "q",
+        nargs="+",
+        type=str,
+        help="Momentum Transfer values in Angstrom^-1 for which to plot the S(q, w) function obtained by CDFT. "
+        "Can be a list of numbers or a range in 'start-end' format.",
+    )
+    parser.add_argument(
+        "-e",
+        "--element",
+        type=str,
+        default="H",
+        help="Element symbol for which to plot the S(q, w) function (default: H).",
+    )
+    parser.add_argument(
+        "-gamma",
+        "--gamma-file-path",
+        type=str,
+        default="data/last_{element}.gamma",
+        help="format string for the path to the hdf5 file containing the gamma data "
+        "(default: data/last_{element}.gamma).",
+    )
+    parser.add_argument(
+        "-stc",
+        "--stc-file-path",
+        type=str,
+        default="data/last.sqw",
+        help="file path for the hdf5 file containing the STC model data (default: data/last.sqw).",
+    )
+    parser.add_argument(
+        "-t",
+        "--temperature",
+        type=float,
+        default=293.0,
+        help="Temperature in Kelvin for the STC model calculation (default: 293 K).",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        nargs="?",
+        const="fig/sqw_comparison_plot.png",
+        type=str,
+        help="Output file name for the plot (default: fig/sqw_comparison_plot.png).",
+    )
     return parser.parse_args()
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Compare CDFT and STC model results for a given Q value.")
-    parser.add_argument("q_value", type=float, help="Q value")
-    args = parser.parse_args()
+    args = parse_args()
 
-    ELEMENT: Final[str] = "H"
-    Q: Final[float] = args.q_value  # unit: 1/angstrom
-    T: Final[float] = 293  # unit: K
+    ELEMENT: Final[str] = args.element
+    T: Final[float] = args.temperature  # unit: K
+    GAMMA_FILE_PATH: Final[str] = args.gamma_file_path.format(element=ELEMENT)
+    STC_FILE_PATH: Final[str] = args.stc_file_path
+    OUTPUT: Final[str | None] = args.output
 
-    time, gamma = get_gamma_data(ELEMENT)
-    freq_dos, dos = get_stc_model_data(ELEMENT)
+    q_str_vals: list[str] = args.q
+    if len(q_str_vals) == 1 and "-" in q_str_vals[0]:
+        start_q, end_q = map(float, q_str_vals[0].split("-"))
+        q_values: NDArray[np.float64] = np.arange(start_q, end_q + 1e-5, 1.0, dtype=np.float64)
+    else:
+        q_values: NDArray[np.float64] = np.array(q_str_vals, dtype=np.float64)
 
-    omega, res_cdft = sqw_cdft(Q, time, gamma)
-    # omega, res_cdft = sqw_cdft(Q, time, gamma * np.hanning(gamma.size))
-    res_stc = sqw_stc_model(Q, omega, freq_dos, dos, T)
+    print(f"Reading gamma data for element: {ELEMENT} from {GAMMA_FILE_PATH}...")
 
-    plt.plot(omega, np.abs(res_cdft), label="CDFT Result")
-    plt.plot(omega, res_stc, label="STC Model Result", linestyle="--")
-    plt.xlabel("Angular Frequency")
-    plt.title(f"Comparison of CDFT and STC Model Results for Q={Q}")
+    time_vec, gamma_qtm = get_gamma_data(ELEMENT, GAMMA_FILE_PATH)
+
+    print("Gamma data loaded successfully.")
+    print(f"Reading STC model data from {STC_FILE_PATH}...")
+
+    freq_dos, dos = get_stc_model_data(ELEMENT, STC_FILE_PATH)
+
+    print("STC model data loaded successfully.")
+    print("Calculating S(q, w) using CDFT...")
+
+    omega_vals: tuple[NDArray[np.float64], ...]
+    sqw_vals: tuple[NDArray[np.complex128], ...]
+    omega_vals, sqw_vals = zip(*map(lambda q: sqw_cdft(q, time_vec, gamma_qtm), q_values), strict=True)
+
+    print("CDFT calculation complete.")
+    print("Calculating S(Q, w) using STC model...")
+
+    stc_sqw_vals: list[NDArray[np.float64]] = list(
+        map(lambda q, omega: sqw_stc_model(q, omega, freq_dos, dos, T), q_values, omega_vals)
+    )
+
+    print("STC model calculation complete.")
+    print("Plotting S(q, w) comparison...")
+
+    plt.figure(figsize=(8, 6), layout="constrained")
+    for q, omega, sqw, stc_sqw in zip(q_values, omega_vals, sqw_vals, stc_sqw_vals, strict=True):
+        (stc_line,) = plt.plot(omega, stc_sqw, label=f"q = {q:.2f}: STC Model")
+        plt.plot(omega, np.abs(sqw), label="CDFT Model", linestyle=":", color=stc_line.get_color())
+    plt.xlabel("Angular Frequency (rad/s)")
+    plt.ylabel("S(q, w)")
+    plt.title(f"S(q, w) Comparison for Element: {ELEMENT}")
     plt.grid()
-    plt.legend()
-    plt.show()
+    plt.legend(*reorder_legend_by_row(*plt.gca().get_legend_handles_labels(), 2), ncol=2, loc="upper left")
+
+    print("Plotting complete.")
+
+    if OUTPUT:
+        plt.savefig(OUTPUT)
+        print(f"Plot saved to {OUTPUT}")
+    else:
+        print("Displaying plot interactively.")
+        plt.show()
+
+    print("Program completed successfully.")
 
 
 if __name__ == "__main__":
