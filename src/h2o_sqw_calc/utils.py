@@ -22,10 +22,8 @@ def flow(value: Any, *functions: Callable[[Any], Any]) -> Any:
     --------
     >>> def add_one(x):
     ...     return x + 1
-    ...
     >>> def square(x):
     ...     return x * x
-    ...
     >>> flow(5, add_one, square)
     36
     >>> flow(5, square, add_one)
