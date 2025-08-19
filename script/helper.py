@@ -16,15 +16,29 @@ def even_extend[T: np.number](arr: NDArray[T]) -> NDArray[T]:
     return np.concatenate((arr[:0:-1], arr))
 
 
+def reorder_legend_by_row(handles: list[Artist], labels: list[str], ncol: int) -> tuple[list[Artist], list[str]]:
+    """Reorders legend items to fill by row instead of by column."""
+    return flow(
+        (handles, labels, ncol),
+        lambda args: (zip_longest(*[iter(args[0])] * args[2]), zip_longest(*[iter(args[1])] * args[2])),
+        lambda items_by_col: (chain.from_iterable(zip(*col, strict=False)) for col in items_by_col),
+        lambda items_by_row: tuple([item for item in group if item is not None] for group in items_by_row),
+    )
+
+
 def get_gamma_data(
-    element: str = "H", file_path: str = "data/last_{element}.gamma"
-) -> tuple[NDArray[np.float64], NDArray[np.complexfloating]]:
+    element: str = "H", file_path: str = "data/last_{element}.gamma", include_classical: bool = False
+) -> (
+    tuple[NDArray[np.float64], NDArray[np.complexfloating]]
+    | tuple[NDArray[np.float64], NDArray[np.complexfloating], NDArray[np.float64]]
+):
     return flow(
         (element, file_path),
         lambda args: args[1].format(element=args[0]),
         lambda file_path: [
             get_data_from_h5py(file_path, key) for key in ("time_vec", "gamma_qtm_real", "gamma_qtm_imag")
         ],
+        lambda data: data.append(get_data_from_h5py(file_path, "gamma_cls")) if include_classical else data,
         lambda data: [even_extend(arr) if (i + 1) % 2 == 0 else odd_extend(arr) for i, arr in enumerate(data)],
         lambda data: (data[0], data[1] + 1j * data[2]),
     )
@@ -39,11 +53,14 @@ def get_stc_model_data(
     )
 
 
-def reorder_legend_by_row(handles: list[Artist], labels: list[str], ncol: int) -> tuple[list[Artist], list[str]]:
-    """Reorders legend items to fill by row instead of by column."""
+def get_sqw_classical_data(
+    element: str = "H", file_path: str = "data/merged_h2o_293k.sqw"
+) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     return flow(
-        (handles, labels, ncol),
-        lambda args: (zip_longest(*[iter(args[0])] * args[2]), zip_longest(*[iter(args[1])] * args[2])),
-        lambda items_by_col: (chain.from_iterable(zip(*col, strict=False)) for col in items_by_col),
-        lambda items_by_row: tuple([item for item in group if item is not None] for group in items_by_row),
+        (element, file_path),
+        lambda args: [
+            get_data_from_h5py(args[1], key)
+            for key in (f"qVec_{args[0]}", f"inc_omega_{args[0]}", f"inc_sqw_{args[0]}")
+        ],
+        lambda data: (data[0], data[1], np.apply_along_axis(even_extend, -1, data[2])),
     )
