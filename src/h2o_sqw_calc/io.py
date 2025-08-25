@@ -13,7 +13,9 @@ def get_data_from_h5py[T: np.number](file_path: str, dataset_name: str) -> NDArr
             if not isinstance((dataset := f[dataset_name]), h5py.Dataset):
                 raise TypeError(f'"{dataset_name}" is not a valid HDF5 dataset in the file "{file_path}".')
             return dataset[()]
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f'File "{file_path}" does NOT exists!') from e
     except OSError as e:
-        raise NotH5FileError(f'Could not open "{file_path}" as an HDF5 file.') from e
+        raise NotH5FileError(f'File "{file_path}" is NOT a valid HDF5 file!') from e
     except KeyError as e:
-        raise KeyError(f'"{dataset_name}" not found in HDF5 file "{file_path}".') from e
+        raise KeyError(f'Dataset "{dataset_name}" NOT FOUND in HDF5 file "{file_path}"!') from e
