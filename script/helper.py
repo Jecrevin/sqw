@@ -32,7 +32,7 @@ def reorder_legend_by_row(handles: list[Artist], labels: list[str], ncol: int) -
 def get_gamma_data(
     element: str = "H", file_path: str = "data/last_{element}.gamma", include_classical: bool = False
 ) -> tuple[NDArray[np.float64], NDArray[np.complexfloating], NDArray[np.float64] | None]:
-    gamma_file = file_path.format(element)
+    gamma_file = file_path.format(element=element)
     return flow(
         ("time_vec", "gamma_qtm_real", "gamma_qtm_imag", "gamma_cls"),
         lambda keys: keys if include_classical else keys[:-1],
