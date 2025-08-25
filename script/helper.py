@@ -28,19 +28,14 @@ def reorder_legend_by_row(handles: list[Artist], labels: list[str], ncol: int) -
 
 def get_gamma_data(
     element: str = "H", file_path: str = "data/last_{element}.gamma", include_classical: bool = False
-) -> (
-    tuple[NDArray[np.float64], NDArray[np.complexfloating]]
-    | tuple[NDArray[np.float64], NDArray[np.complexfloating], NDArray[np.float64]]
-):
+) -> tuple[NDArray[np.float64], NDArray[np.complexfloating], NDArray[np.float64] | None]:
+    gamma_file = file_path.format(element)
     return flow(
-        (element, file_path),
-        lambda args: args[1].format(element=args[0]),
-        lambda file_path: [
-            get_data_from_h5py(file_path, key) for key in ("time_vec", "gamma_qtm_real", "gamma_qtm_imag")
-        ],
-        lambda data: data + [get_data_from_h5py(file_path, "gamma_cls")] if include_classical else data,
-        lambda data: [even_extend(arr) if (i + 1) % 2 == 0 else odd_extend(arr) for i, arr in enumerate(data)],
-        lambda data: (data[0], data[1] + 1j * data[2]),
+        ("time_vec", "gamma_qtm_real", "gamma_qtm_imag", "gamma_cls"),
+        lambda keys: keys if include_classical else keys[:-1],
+        lambda keys: [get_data_from_h5py(gamma_file, key) for key in keys],
+        lambda data: [even_extend(e) if i % 2 != 0 else odd_extend(e) for i, e in enumerate(data)],
+        lambda data: (data[0], data[1] + 1j * data[2], data[3] if include_classical else None),
     )
 
 
