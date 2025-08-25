@@ -1,9 +1,15 @@
 import argparse
-import os
-from typing import Final
+import sys
+from typing import Final, Literal
 
 import numpy as np
-from helper import get_gamma_data, get_stc_model_data, reorder_legend_by_row
+from helper import (
+    get_gamma_data,
+    get_q_values_from_cmdline,
+    get_stc_model_data,
+    reorder_legend_by_row,
+    save_or_show_plot,
+)
 from matplotlib import pyplot as plt
 from numpy.typing import NDArray
 
@@ -129,21 +135,7 @@ def main():
     plt.grid()
     plt.legend(*reorder_legend_by_row(*plt.gca().get_legend_handles_labels(), ncol=2), ncol=2, loc="upper left")
 
-    print("Plotting complete.")
-
-    if OUTPUT:
-        if os.path.exists(OUTPUT):
-            choice = input(f"File '{OUTPUT}' already exists. Overwrite? (y/N): ").lower()
-            if choice != "y":
-                print("Aborted.")
-                return
-        if output_dir := os.path.dirname(OUTPUT):
-            os.makedirs(output_dir, exist_ok=True)
-        plt.savefig(OUTPUT)
-        print(f"Plot saved to {OUTPUT}")
-    else:
-        print("Displaying plot interactively.")
-        plt.show()
+    save_or_show_plot(OUTPUT)
 
     print("Program completed successfully.")
 

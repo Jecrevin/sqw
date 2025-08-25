@@ -1,10 +1,10 @@
 import argparse
-import os
+import sys
 from typing import Final, Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
-from helper import get_gamma_data, reorder_legend_by_row
+from helper import get_gamma_data, get_q_values_from_cmdline, reorder_legend_by_row, save_or_show_plot
 from numpy.typing import NDArray
 
 from h2o_sqw_calc.utils import flow
@@ -122,19 +122,7 @@ def main():
     else:
         plt.legend()
 
-    if OUTPUT:
-        if os.path.exists(OUTPUT):
-            choice = input(f"File '{OUTPUT}' already exists. Overwrite? (y/N): ").lower()
-            if choice != "y":
-                print("Aborted.")
-                return
-        if output_dir := os.path.dirname(OUTPUT):
-            os.makedirs(output_dir, exist_ok=True)
-        plt.savefig(OUTPUT)
-        print(f"Plot saved to {OUTPUT}")
-    else:
-        print("Displaying plot interactively.")
-        plt.show()
+    save_or_show_plot(OUTPUT)
 
     print("Program completed successfully.")
 

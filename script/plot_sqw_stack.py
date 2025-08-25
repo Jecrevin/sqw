@@ -1,9 +1,9 @@
 import argparse
-import os
+import sys
 from typing import Final
 
 import numpy as np
-from helper import get_gamma_data, get_stc_model_data
+from helper import get_gamma_data, get_stc_model_data, save_or_show_plot
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
 from numpy.typing import NDArray
@@ -164,21 +164,8 @@ def main():
     plt.legend(loc="lower right", bbox_to_anchor=(1.05, 0.99))
     plt.grid()
 
-    if OUTPUT:
-        if os.path.exists(OUTPUT):
-            choice = input(f"File '{OUTPUT}' already exists. Overwrite? (y/N): ").lower()
-            if choice != "y":
-                print("Aborted.")
-                return
-        if output_dir := os.path.dirname(OUTPUT):
-            os.makedirs(output_dir, exist_ok=True)
-        plt.savefig(OUTPUT)
-        print(f"Plot saved to {OUTPUT}")
-    else:
-        print("Displaying plot interactively.")
-        plt.show()
+    save_or_show_plot(OUTPUT)
 
-    print("Plotting complete.")
     print("Program completed successfully.")
 
 

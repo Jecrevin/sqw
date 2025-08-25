@@ -1,6 +1,9 @@
+import os
+import sys
 from itertools import chain, zip_longest
 
 import numpy as np
+from matplotlib import pyplot as plt
 from matplotlib.artist import Artist
 from numpy.typing import NDArray
 
@@ -59,3 +62,28 @@ def get_sqw_classical_data(
         ],
         lambda data: (data[0], data[1], np.apply_along_axis(even_extend, -1, data[2])),
     )
+
+
+def save_or_show_plot(output: str | None):
+    if output:
+        if os.path.exists(output):
+            choice = input(f"File '{output}' already exists. Overwrite? (y/N): ").lower()
+            if choice != "y":
+                sys.exit("Aborted!")
+        if output_dir := os.path.dirname(output):
+            os.makedirs(output_dir, exist_ok=True)
+        plt.savefig(output)
+        print(f"Plot saved to {output}")
+    else:
+        print("Displaying plot interactively.")
+        plt.show()
+
+
+def get_q_values_from_cmdline(q_str_vals: list[str], q_step: float | None) -> NDArray[np.float64]:
+    q_values: NDArray[np.float64]
+    if len(q_str_vals) == 1 and "-" in q_str_vals[0]:
+        start_q, end_q = map(float, q_str_vals[0].split("-"))
+        q_values = np.arange(start_q, end_q, q_step, dtype=np.float64)
+    else:
+        q_values = np.array(q_str_vals, dtype=np.float64)
+    return q_values
