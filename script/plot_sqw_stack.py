@@ -12,7 +12,7 @@ from h2o_sqw_calc.core import HBAR, sqw_cdft, sqw_stc_model
 from h2o_sqw_calc.utils import flow
 
 
-def parse_args() -> argparse.Namespace:
+def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Plot S(q, w) function obtained by CDFT for a range of Momentum "
         "Transfer values [Q_START-Q_END] stacking together.",
@@ -77,7 +77,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main():
-    args = parse_args()
+    args = _parse_args()
 
     ELEMENT: Final[Literal["H", "O"]] = args.element
     T: Final[float] = args.temperature  # unit: K
@@ -91,12 +91,18 @@ def main():
 
     print(f"Loading STC model data from {STC_FILE_PATH}...")
 
-    freq_dos, dos = get_stc_model_data(ELEMENT)
+    try:
+        freq_dos, dos = get_stc_model_data(ELEMENT, STC_FILE_PATH)
+    except Exception as e:
+        sys.exit(f"Error occured while reading STC data: {e}")
 
     print("STC model data loaded successfully!")
     print(f"Loading gamma data from {GAMMA_FILE_PATH}...")
 
-    time, gamma = get_gamma_data(ELEMENT)
+    try:
+        time, gamma, _ = get_gamma_data(ELEMENT, GAMMA_FILE_PATH)
+    except Exception as e:
+        sys.exit(f"Error occured while reading gamma data: {e}")
 
     print("Gamma data loaded successfully!")
     print("Calculating CDFT S(Q, w) values...")

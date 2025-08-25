@@ -16,7 +16,7 @@ from numpy.typing import NDArray
 from h2o_sqw_calc.core import HBAR, sqw_cdft, sqw_stc_model
 
 
-def parse_args() -> argparse.Namespace:
+def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Plot S(q, w) comparison between CDFT and STC model for given Momentum Transfer values [Q1, Q2, ...]."
@@ -83,7 +83,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main():
-    args = parse_args()
+    args = _parse_args()
 
     ELEMENT: Final[Literal["H", "O"]] = args.element
     ENERGY_UNIT: Final[bool] = args.energy_unit
@@ -91,42 +91,42 @@ def main():
     OUTPUT: Final[str | None] = args.output
     STC_FILE_PATH: Final[str] = args.stc_file_path
     T: Final[float] = args.temperature  # unit: K
-
-    q_str_vals: list[str] = args.q
-    if len(q_str_vals) == 1 and "-" in q_str_vals[0]:
-        start_q, end_q = map(float, q_str_vals[0].split("-"))
-        q_values: NDArray[np.float64] = np.arange(start_q, end_q + args.step / 2, args.step, dtype=np.float64)
-    else:
-        q_values: NDArray[np.float64] = np.array(q_str_vals, dtype=np.float64)
+    Q_VALUES: Final[NDArray[np.float64]] = get_q_values_from_cmdline(args.q, args.step)
 
     print(f"Reading gamma data for element: {ELEMENT} from {GAMMA_FILE_PATH}...")
 
-    time_vec, gamma_qtm = get_gamma_data(ELEMENT, GAMMA_FILE_PATH)
+    try:
+        time_vec, gamma_qtm, _ = get_gamma_data(ELEMENT, GAMMA_FILE_PATH)
+    except Exception as e:
+        sys.exit(f"Error occured while reading gamma data: {e}")
 
     print("Gamma data loaded successfully.")
     print(f"Reading STC model data from {STC_FILE_PATH}...")
 
-    freq_dos, dos = get_stc_model_data(ELEMENT, STC_FILE_PATH)
+    try:
+        freq_dos, dos = get_stc_model_data(ELEMENT, STC_FILE_PATH)
+    except Exception as e:
+        sys.exit(f"Error occured while reading STC data: {e}")
 
     print("STC model data loaded successfully.")
     print("Calculating S(q, w) using CDFT...")
 
     omega_vals: tuple[NDArray[np.float64], ...]
     sqw_vals: tuple[NDArray[np.complex128], ...]
-    omega_vals, sqw_vals = zip(*map(lambda q: sqw_cdft(q, time_vec, gamma_qtm), q_values), strict=True)
+    omega_vals, sqw_vals = zip(*map(lambda q: sqw_cdft(q, time_vec, gamma_qtm), Q_VALUES), strict=True)
 
     print("CDFT calculation complete.")
     print("Calculating S(Q, w) using STC model...")
 
     stc_sqw_vals: list[NDArray[np.float64]] = list(
-        map(lambda q, omega: sqw_stc_model(q, omega, freq_dos, dos, T), q_values, omega_vals)
+        map(lambda q, omega: sqw_stc_model(q, omega, freq_dos, dos, T), Q_VALUES, omega_vals)
     )
 
     print("STC model calculation complete.")
     print("Plotting S(q, w) comparison...")
 
     plt.figure(figsize=(8, 6), layout="constrained")
-    for q, omega, sqw, stc_sqw in zip(q_values, omega_vals, sqw_vals, stc_sqw_vals, strict=True):
+    for q, omega, sqw, stc_sqw in zip(Q_VALUES, omega_vals, sqw_vals, stc_sqw_vals, strict=True):
         x = omega * HBAR if ENERGY_UNIT else omega
         (stc_line,) = plt.plot(x, stc_sqw, label=f"q = {q:.2f}: STC Model")
         plt.plot(x, np.abs(sqw), label="CDFT Model", linestyle=":", color=stc_line.get_color())

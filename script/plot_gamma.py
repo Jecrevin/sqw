@@ -4,10 +4,10 @@ from typing import Final, Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
-from helper import get_gamma_data
+from helper import get_gamma_data, save_or_show_plot
 
 
-def parse_args() -> argparse.Namespace:
+def _parse_args() -> argparse.Namespace:
     argparser = argparse.ArgumentParser()
     argparser.add_argument(
         "-e",
@@ -36,7 +36,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main():
-    args = parse_args()
+    args = _parse_args()
 
     ELEMENT: Final[Literal["H", "O"]] = args.element
     FILE_PATH: Final[str] = args.file_path
@@ -44,7 +44,10 @@ def main():
 
     print(f"Reading gamma data for element: {ELEMENT} from {FILE_PATH}...")
 
-    time_vec, gamma_qtm = get_gamma_data(element=ELEMENT, file_path=FILE_PATH)
+    try:
+        time_vec, gamma_qtm, _ = get_gamma_data(element=ELEMENT, file_path=FILE_PATH)
+    except Exception as e:
+        sys.exit(f"Error occured while reading gamma data: {e}")
 
     print("Gamma data loaded successfully.")
     print("Plotting gamma function...")

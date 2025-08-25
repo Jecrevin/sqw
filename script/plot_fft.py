@@ -10,7 +10,7 @@ from numpy.typing import NDArray
 from h2o_sqw_calc.utils import flow
 
 
-def parse_args() -> argparse.Namespace:
+def _parse_args() -> argparse.Namespace:
     argparser = argparse.ArgumentParser(
         description=(
             "Plot H2O Scattering function S(q, w) results obtained by FFT for given "
@@ -66,24 +66,20 @@ def parse_args() -> argparse.Namespace:
 
 
 def main():
-    args = parse_args()
+    args = _parse_args()
 
     ELEMENT: Final[Literal["H", "O"]] = args.element
     FILE_PATH: Final[str] = args.file_path.format(element=ELEMENT)
     OUTPUT: Final[str | None] = args.output
     SCALE: Final[Literal["linear", "log"]] = args.scale
-
-    q_str_vals: list[str] = args.q
-    q_values: NDArray[np.float64]
-    if len(q_str_vals) == 1 and "-" in q_str_vals[0]:
-        start_q, end_q = map(float, q_str_vals[0].split("-"))
-        q_values = np.arange(start_q, end_q, args.step, dtype=np.float64)
-    else:
-        q_values = np.array(q_str_vals, dtype=np.float64)
+    Q_VALUES: Final[NDArray[np.float64]] = get_q_values_from_cmdline(args.q, args.step)
 
     print(f"Reading gamma data for element: {ELEMENT} from {FILE_PATH}...")
 
-    time_vec, gamma_qtm = get_gamma_data(element=ELEMENT, file_path=FILE_PATH)
+    try:
+        time_vec, gamma_qtm, _ = get_gamma_data(element=ELEMENT, file_path=FILE_PATH)
+    except Exception as e:
+        sys.exit(f"Error occured while reading gamma data: {e}")
 
     print("Gamma data loaded successfully.")
     print("Calculating S(q, w) via gamma function using FFT...")
@@ -91,7 +87,7 @@ def main():
     dt: float = np.diff(time_vec).mean()
     omega = np.fft.fftshift(np.fft.fftfreq(time_vec.size, d=dt)) * 2 * np.pi
     sqw_vals: NDArray[np.complex128] = flow(
-        (gamma_qtm, np.expand_dims(q_values, axis=1)),
+        (gamma_qtm, np.expand_dims(Q_VALUES, axis=1)),
         lambda args: np.fft.fft(np.exp(-(args[1] ** 2) * args[0] / 2)) / (2 * np.pi),
         lambda sqw_vals: np.fft.fftshift(sqw_vals, axes=-1),
     )
@@ -100,9 +96,8 @@ def main():
     print("Plotting S(q, w) function...")
 
     plt.figure(figsize=(8, 6), layout="constrained")
-    for q, sqw in zip(q_values, sqw_vals, strict=True):
+    for q, sqw in zip(Q_VALUES, sqw_vals, strict=True):
         plt.plot(omega, np.abs(sqw), label=f"Q = {q:.2f}")
-
     match SCALE:
         case "linear":
             plt.yscale("linear")
@@ -112,7 +107,7 @@ def main():
     plt.ylabel("S(q, w)")
     plt.title(f"S(q, w) Function for Element: {ELEMENT}")
     plt.grid()
-    if len(q_values) > 10:
+    if len(Q_VALUES) > 10:
         ncol = 5
         plt.legend(
             *reorder_legend_by_row(*plt.gca().get_legend_handles_labels(), ncol),
