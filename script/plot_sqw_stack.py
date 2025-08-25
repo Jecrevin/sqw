@@ -1,6 +1,6 @@
 import argparse
 import sys
-from typing import Final
+from typing import Final, Literal
 
 import numpy as np
 from helper import get_gamma_data, get_stc_model_data, save_or_show_plot
@@ -34,6 +34,7 @@ def parse_args() -> argparse.Namespace:
         "-e",
         "--element",
         type=str,
+        choices=["H", "O"],
         default="H",
         help="Element symbol for which to plot the S(q, w) function (default: H).",
     )
@@ -78,7 +79,7 @@ def parse_args() -> argparse.Namespace:
 def main():
     args = parse_args()
 
-    ELEMENT: Final[str] = args.element
+    ELEMENT: Final[Literal["H", "O"]] = args.element
     T: Final[float] = args.temperature  # unit: K
     GAMMA_FILE_PATH: Final[str] = args.gamma_file_path.format(element=ELEMENT)
     STC_FILE_PATH: Final[str] = args.stc_file_path

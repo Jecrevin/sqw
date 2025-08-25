@@ -40,6 +40,7 @@ def parse_args() -> argparse.Namespace:
         "-e",
         "--element",
         type=str,
+        choices=["H", "O"],
         default="H",
         help="Element symbol for which to plot the S(q, w) function (default: H).",
     )
@@ -84,7 +85,7 @@ def parse_args() -> argparse.Namespace:
 def main():
     args = parse_args()
 
-    ELEMENT: Final[str] = args.element
+    ELEMENT: Final[Literal["H", "O"]] = args.element
     ENERGY_UNIT: Final[bool] = args.energy_unit
     GAMMA_FILE_PATH: Final[str] = args.gamma_file_path.format(element=ELEMENT)
     OUTPUT: Final[str | None] = args.output

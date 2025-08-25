@@ -13,6 +13,7 @@ def parse_args() -> argparse.Namespace:
         "-e",
         "--element",
         type=str,
+        choices=["H", "O"],
         default="H",
         help="Element symbol for which to plot the gamma function (default: H).",
     )
@@ -37,7 +38,7 @@ def parse_args() -> argparse.Namespace:
 def main():
     args = parse_args()
 
-    ELEMENT: Final[str] = args.element
+    ELEMENT: Final[Literal["H", "O"]] = args.element
     FILE_PATH: Final[str] = args.file_path
     OUTPUT: Final[str | None] = args.output
 
