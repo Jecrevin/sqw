@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from functools import cache
+from functools import lru_cache
 from typing import Final
 
 import numpy as np
@@ -50,7 +50,7 @@ def sqw_stc_model(
     )
 
 
-@cache
+@lru_cache
 def _sqw_cdft_recursive(
     q: float,
     gamma_tuple: tuple[NDArray[np.complexfloating], ...],
