@@ -24,26 +24,33 @@ def sqw_stc_model(
     density_of_states: NDArray,
     temperature: float,
     mass_num: int = 1,
-) -> NDArray:
-    beta_eff: float = flow(
-        temperature,
-        lambda t: HBAR / (KB * t),
-        lambda hbar_beta: temperature
-        * np.trapezoid(
-            np.divide(
-                density_of_states * hbar_beta * freq_dos,
-                2 * np.tanh(hbar_beta * freq_dos / 2),
-                out=density_of_states.copy(),
-                where=(~np.isclose(freq_dos, 0, atol=0)),
-            ),
-            freq_dos,
+) -> Array1D[np.float64]:
+    """
+    Calculate Scattering function S(q, w) using Short Time Collision Approximation (STC) model.
+    """
+    if not (q > 0):
+        raise ValueError("Momentum transfer `q` must be greater than 0!")
+    if not is_all_array_1d(w, freq_dos, density_of_states):
+        raise ValueError("Input arrays must be all one-dimentional!")
+    if not (temperature >= 0):
+        raise ValueError("Temperature is in Kelvin and must be geater than or equal to 0!")
+    if not (isinstance(mass_num, int) and mass_num > 0):
+        raise ValueError("Mass number must be a positive integer!")
+
+    hbar_beta = HBAR / (KB * temperature)
+    t_eff = temperature * np.trapezoid(
+        np.divide(
+            density_of_states * hbar_beta * freq_dos,
+            2 * np.tanh(hbar_beta * freq_dos / 2),
+            out=density_of_states.copy(),
+            where=(~np.isclose(freq_dos, 0, atol=0)),
         ),
-        lambda t_eff: 1 / (KB * t_eff),
+        freq_dos,
     )
-    return flow(
-        q,
-        lambda q: (HBAR * q) ** 2 / (2 * mass_num * NEUTRON_MASS),
-        lambda recoil_energy: HBAR
+    beta_eff = 1 / (KB * t_eff)
+    recoil_energy = (HBAR * q) ** 2 / (2 * mass_num * NEUTRON_MASS)
+    result = (
+        HBAR
         * np.sqrt(beta_eff / (4 * PI * recoil_energy))
         * np.exp(-beta_eff / (4 * recoil_energy) * (HBAR * w - recoil_energy) ** 2)
         * np.exp(-HBAR * w * beta_eff),

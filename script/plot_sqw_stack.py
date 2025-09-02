@@ -9,7 +9,6 @@ from matplotlib.colors import LogNorm
 from numpy.typing import NDArray
 
 from h2o_sqw_calc.core import HBAR, sqw_cdft, sqw_stc_model
-from h2o_sqw_calc.utils import flow
 
 
 def _parse_args() -> argparse.Namespace:
@@ -109,46 +108,28 @@ def main():
 
     dw = 2 * np.pi / np.diff(time).mean() / time.size
 
-    q_vals: tuple[float, ...]
-    omega_vals: tuple[NDArray[np.float64], ...]
-    sqw_vals: tuple[NDArray[np.complex128], ...]
-    q_vals, omega_vals, sqw_vals = flow(
-        np.linspace(Q_START, Q_END, int((Q_END - Q_START) / Q_STEP), endpoint=False),
-        lambda q_range: [(q, *sqw_cdft(q, time, gamma)) for q in q_range],
-        lambda results: zip(*results, strict=False),
-    )
+    q_vals = np.linspace(Q_START, Q_END, int((Q_END - Q_START) / Q_STEP), endpoint=False)
+    sqw_results = [sqw_cdft(q, time, gamma) for q in q_vals]
+    omega_vals, sqw_vals = zip(*sqw_results, strict=True)
 
     print("CDFT S(Q, w) values calculated successfully!")
     print("Interpolating S(Q, w) values on a common frequency grid...")
 
-    omega: NDArray[np.float64] = flow(
-        omega_vals,
-        lambda omega_vals: ([omega_val[0] for omega_val in omega_vals], [omega_val[-1] for omega_val in omega_vals]),
-        lambda minmax_arr: (min(minmax_arr[0]), max(minmax_arr[1])),
-        lambda minmax: np.linspace(minmax[0], minmax[1], int((minmax[1] - minmax[0]) / dw) + 1),
-    )
+    omega_min: float = min([omega_val[0] for omega_val in omega_vals])
+    omega_max: float = max([omega_val[-1] for omega_val in omega_vals])
+    omega = np.linspace(omega_min, omega_max, int((omega_max - omega_min) / dw) + 1)
 
     sqw = np.stack(
-        flow(
-            (sqw_vals, omega_vals),
-            lambda sqw_omega: map(lambda sqw_val, omega_val: np.interp(omega, omega_val, sqw_val), *sqw_omega),
-            lambda sqw: list(sqw),
-        ),
+        [
+            np.interp(omega, omega_val, sqw_val, left=0, right=0)
+            for sqw_val, omega_val in zip(sqw_vals, omega_vals, strict=True)
+        ]
     )
 
     print("S(Q, w) values interpolated successfully!")
     print("Getting max point of  STC Model...")
 
-    stc_max = np.array(
-        [
-            flow(
-                q,
-                lambda q: sqw_stc_model(q, omega, freq_dos, dos, T).argmax(),
-                lambda idx: omega[idx],
-            )
-            for q in q_vals
-        ]
-    )
+    stc_max = np.array([omega[sqw_stc_model(q, omega, freq_dos, dos, T).argmax()] for q in q_vals])
 
     print("Max points of STC Model obtained successfully!")
     print("Plotting results...")

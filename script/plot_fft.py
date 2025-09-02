@@ -86,11 +86,8 @@ def main():
 
     dt: float = np.diff(time_vec).mean()
     omega = np.fft.fftshift(np.fft.fftfreq(time_vec.size, d=dt)) * 2 * np.pi
-    sqw_vals: NDArray[np.complex128] = flow(
-        (gamma_qtm, np.expand_dims(Q_VALUES, axis=1)),
-        lambda args: np.fft.fft(np.exp(-(args[1] ** 2) * args[0] / 2)) / (2 * np.pi),
-        lambda sqw_vals: np.fft.fftshift(sqw_vals, axes=-1),
-    )
+    sisf_vals = np.exp(-((Q_VALUES[:, None]) ** 2) * gamma_qtm / 2)
+    sqw_vals = np.fft.fftshift(np.fft.fft(sisf_vals, axis=1) / (2 * np.pi), axes=-1)
 
     print("S(q, w) calculation complete.")
     print("Plotting S(q, w) function...")
