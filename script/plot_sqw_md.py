@@ -21,7 +21,7 @@ def main():
     print(f"Reading data from {FILE_PATH}...")
 
     try:
-        sqw_cls_data: NDArray[np.float64] = np.apply_along_axis(
+        sqw_md_data: NDArray[np.float64] = np.apply_along_axis(
             even_extend,
             -1,
             get_data_from_h5py(FILE_PATH, f"inc_sqw_{ELEMENT}"),
@@ -34,7 +34,7 @@ def main():
     print("Data loaded successfully.")
     print(f"Plotting S(Q, w) for Element '{ELEMENT}'...")
 
-    _plot_sqw_cls(q_vec, omega, sqw_cls_data, INDEXS)
+    _plot_sqw_md(q_vec, omega, sqw_md_data, INDEXS)
 
     print("Plotting completed.")
 
@@ -77,8 +77,8 @@ def _parse_args() -> argparse.Namespace:
         "--output",
         nargs="?",
         type=str,
-        const="fig/sqw_cls_plot.png",
-        help="Output file name for the plot (default: fig/sqw_cls_plot.png).",
+        const="fig/sqw_md_plot.png",
+        help="Output file name for the plot (default: fig/sqw_md_plot.png).",
     )
 
     return argparser.parse_args()
@@ -95,7 +95,7 @@ def _get_indexs(indexs: list[str], step: int) -> list[int]:
     return sorted(set(result))
 
 
-def _plot_sqw_cls(
+def _plot_sqw_md(
     q_vals: NDArray[np.floating],
     omega: NDArray[np.floating],
     sqw_cls_data: NDArray[np.floating],
@@ -109,7 +109,7 @@ def _plot_sqw_cls(
         plt.plot(omega, sqw_cls_data[idx], label=f"Q = {q_vals[idx]:.2f} Å⁻¹")
     plt.xlabel("Angular Frequency (rad/s)")
     plt.ylabel("Arbitrary Units")
-    plt.title("Classical Scattering Function S(Q, w)")
+    plt.title("Scattering Function S(Q, w) Data from Molecular Dynamics Simulation")
     plt.legend()
     plt.grid()
 
