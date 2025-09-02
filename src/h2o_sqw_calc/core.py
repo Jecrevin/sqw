@@ -7,8 +7,14 @@ import scipy.constants as consts
 from numpy.typing import NDArray
 from scipy.constants import pi as PI
 
-from .math import continuous_fourier_transform, self_linear_convolve, self_linear_convolve_x_axis
-from .utils import flow
+from .math import (
+    continuous_fourier_transform,
+    is_all_array_1d,
+    self_linear_convolve,
+    self_linear_convolve_x_axis,
+    trim_function,
+)
+from .typing import Array1D
 
 HBAR: Final[float] = consts.value("reduced Planck constant in eV s")  # unit: eV·s
 KB: Final[float] = consts.value("Boltzmann constant in eV/K")  # unit: eV/K
@@ -19,9 +25,9 @@ NEUTRON_MASS: Final[float] = (
 
 def sqw_stc_model(
     q: float,
-    w: NDArray,
-    freq_dos: NDArray,
-    density_of_states: NDArray,
+    w: Array1D,
+    freq_dos: Array1D,
+    density_of_states: Array1D,
     temperature: float,
     mass_num: int = 1,
 ) -> Array1D[np.float64]:
@@ -53,60 +59,61 @@ def sqw_stc_model(
         HBAR
         * np.sqrt(beta_eff / (4 * PI * recoil_energy))
         * np.exp(-beta_eff / (4 * recoil_energy) * (HBAR * w - recoil_energy) ** 2)
-        * np.exp(-HBAR * w * beta_eff),
+        * np.exp(-HBAR * w * beta_eff)
     )
+
+    return result
 
 
 @lru_cache
-def _sqw_cdft_recursive(
+def _sqw_cdft_recursive[T: np.complexfloating, U: np.floating](
     q: float,
-    gamma_tuple: tuple[NDArray[np.complexfloating], ...],
-    omega_tuple: tuple[NDArray[np.floating], ...],
+    gamma_tuple: tuple[T, ...],
+    omega_tuple: tuple[U, ...],
     dt: float,
     dw: float,
-    logger: Callable[[str], None] | None = None,
-) -> tuple[NDArray[np.floating], NDArray[np.complexfloating]]:
+    logger: Callable[[str], None] | None,
+) -> tuple[Array1D[np.floating], NDArray[np.complex128]]:
     """Helper function to calculate S(q, w) using CDFT with logging."""
-    gamma = np.array(gamma_tuple)
-    omega = np.array(omega_tuple)
+    gamma: Array1D[T] = np.array(gamma_tuple)
+    omega: Array1D[U] = np.array(omega_tuple)
+
     if logger:
         logger(f"Calculating CDFT recursively for q = {q:.2f} ...")
 
     if q <= 5:
-        return omega, continuous_fourier_transform(np.exp(-(q**2) * gamma / 2), 1 / dt) / (2 * PI)
+        result = omega, continuous_fourier_transform(np.exp(-(q**2) * gamma / 2), 1 / dt) / (2 * PI)
 
-    next_q = round(q / np.sqrt(2), 8)
-    recur_res = _sqw_cdft_recursive(next_q, gamma_tuple, omega_tuple, dt, dw, logger)
+        if logger:
+            logger(f"=> done with q = {q:.2f}.")
 
-    x_recur, y_recur = recur_res
-    y_abs = np.abs(y_recur)
-    threshold = np.max(y_abs) * 1e-9
-    significant_indices = np.where(y_abs > threshold)[0]
+        return result
 
-    if significant_indices.size > 0:
-        start, end = significant_indices[0], significant_indices[-1] + 1
-        if start > 0 or end < x_recur.size:
-            x_recur = x_recur[start:end]
-            y_recur = y_recur[start:end]
+    recur_q = round(q / np.sqrt(2), 8)
+    x_recur, y_recur = trim_function(
+        *_sqw_cdft_recursive(recur_q, gamma_tuple, omega_tuple, dt, dw, logger), cut_ratio=1e-9
+    )
 
-    # Ensure even length for convolution if needed, though self_linear_convolve might handle it.
-    # This is a good practice for some FFT-based algorithms.
-    if x_recur.size % 2 != 0:
-        x_recur = np.append(x_recur, x_recur[-1] + (x_recur[-1] - x_recur[-2]))
-        y_recur = np.append(y_recur, 0j)
+    results = self_linear_convolve_x_axis(x_recur), self_linear_convolve(y_recur, dw).astype(np.complex128)
 
     if logger:
-        logger(f"=> done with q = {next_q:.2f}, now back to results for q = {q:.2f} ...")
+        logger(f"=> done with q = {q:.2f}.")
 
-    return self_linear_convolve_x_axis(x_recur), self_linear_convolve(y_recur, dw)
+    return results
 
 
-def sqw_cdft(
+def sqw_cdft[T: np.floating, U: np.complexfloating](
     q: float,
-    time_vec: NDArray[np.floating],
-    gamma: NDArray[np.complexfloating],
+    time_vec: Array1D[T],
+    gamma: Array1D[U],
+    *,
     logger: Callable[[str], None] | None = print,
-) -> tuple[NDArray[np.floating], NDArray[np.complexfloating]]:
+) -> tuple[Array1D[np.floating], Array1D[np.complex128]]:
+    if not (q > 0):
+        raise ValueError("Momentum transfer `q` must be greater than 0!")
+    if not is_all_array_1d(time_vec, gamma):
+        raise ValueError("Input arrays must be one-dimensional!")
+
     dt = time_vec[1] - time_vec[0]
     omega = np.fft.fftshift(np.fft.fftfreq(time_vec.size, dt)) * 2 * PI
     dw = omega[1] - omega[0]
@@ -114,4 +121,9 @@ def sqw_cdft(
     gamma_tuple = tuple(gamma)
     omega_tuple = tuple(omega)
 
-    return _sqw_cdft_recursive(q, gamma_tuple, omega_tuple, dt, dw, logger=logger)
+    result = _sqw_cdft_recursive(q, gamma_tuple, omega_tuple, dt, dw, logger=logger)
+
+    if logger:
+        logger(f"S(q, w) calculation for q = {q:.2f} completed.")
+
+    return result

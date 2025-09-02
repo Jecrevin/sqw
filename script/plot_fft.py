@@ -5,9 +5,8 @@ from typing import Final, Literal
 import matplotlib.pyplot as plt
 import numpy as np
 from helper import get_gamma_data, get_q_values_from_cmdline, reorder_legend_by_row, save_or_show_plot
-from numpy.typing import NDArray
 
-from h2o_sqw_calc.utils import flow
+from h2o_sqw_calc.typing import Array1D
 
 
 def _parse_args() -> argparse.Namespace:
@@ -72,7 +71,7 @@ def main():
     FILE_PATH: Final[str] = args.file_path.format(element=ELEMENT)
     OUTPUT: Final[str | None] = args.output
     SCALE: Final[Literal["linear", "log"]] = args.scale
-    Q_VALUES: Final[NDArray[np.float64]] = get_q_values_from_cmdline(args.q, args.step)
+    Q_VALUES: Final[Array1D[np.float64]] = get_q_values_from_cmdline(args.q, args.step)
 
     print(f"Reading gamma data for element: {ELEMENT} from {FILE_PATH}...")
 

@@ -6,7 +6,6 @@ import numpy as np
 from helper import get_gamma_data, get_stc_model_data, save_or_show_plot
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
-from numpy.typing import NDArray
 
 from h2o_sqw_calc.core import HBAR, sqw_cdft, sqw_stc_model
 
@@ -135,13 +134,15 @@ def main():
     print("Plotting results...")
 
     plt.figure(figsize=(10, 8), layout="constrained")
-    plt.pcolormesh(
-        q_vals,
-        omega * HBAR if ENERGY_UNIT else omega,
+    y_coords = omega * HBAR if ENERGY_UNIT else omega
+    plt.imshow(
         np.abs(sqw.T),
-        shading="auto",
+        extent=(q_vals.min(), q_vals.max(), y_coords.min(), y_coords.max()),
+        origin="lower",
+        aspect="auto",
         cmap="viridis",
         norm=LogNorm(),
+        interpolation="none",
     )
     plt.plot(q_vals, stc_max * HBAR if ENERGY_UNIT else stc_max, color="red", label="STC Model Max", linestyle="--")
     plt.title(f"S(Q, w) for {ELEMENT} at {T} K")
@@ -149,7 +150,7 @@ def main():
     plt.ylabel("Energy (eV)" if ENERGY_UNIT else "Angular Frequency (rad/s)")
     plt.ylim(bottom=(-10 if ENERGY_UNIT else -10 / HBAR))
     plt.colorbar(label="S(Q, w)")
-    plt.legend(loc="lower right", bbox_to_anchor=(1.05, 0.99))
+    plt.legend(loc="lower right", bbox_to_anchor=(1.01, 0.99))
     plt.grid()
 
     save_or_show_plot(OUTPUT)

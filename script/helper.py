@@ -5,17 +5,16 @@ from itertools import chain, zip_longest
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.artist import Artist
-from numpy.typing import NDArray
 
 from h2o_sqw_calc.io import get_data_from_h5py
 from h2o_sqw_calc.typing import Array1D
 
 
-def odd_extend[T: np.number](arr: NDArray[T]) -> NDArray[T]:
+def odd_extend[T: np.number](arr: Array1D[T]) -> Array1D[T]:
     return np.concatenate((-arr[:0:-1], arr))
 
 
-def even_extend[T: np.number](arr: NDArray[T]) -> NDArray[T]:
+def even_extend[T: np.number](arr: Array1D[T]) -> Array1D[T]:
     return np.concatenate((arr[:0:-1], arr))
 
 
@@ -34,7 +33,7 @@ def reorder_legend_by_row(handles: list[Artist], labels: list[str], ncol: int) -
 
 def get_gamma_data(
     element: str = "H", file_path: str = "data/last_{element}.gamma", include_classical: bool = False
-) -> tuple[NDArray[np.float64], NDArray[np.complexfloating], NDArray[np.float64] | None]:
+) -> tuple[Array1D[np.float64], Array1D[np.complex128], Array1D[np.float64] | None]:
     gamma_file = file_path.format(element=element)
     keys = ("time_vec", "gamma_qtm_real", "gamma_qtm_imag", "gamma_cls")
     if not include_classical:
@@ -51,7 +50,7 @@ def get_gamma_data(
 
 def get_stc_model_data(
     element: str = "H", file_path: str = "data/last.sqw"
-) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+) -> tuple[Array1D[np.float64], Array1D[np.float64]]:
     return (
         get_data_from_h5py(file_path, f"inc_omega_{element}"),
         get_data_from_h5py(file_path, f"inc_vdos_{element}"),
@@ -68,7 +67,7 @@ def get_sqw_classical_data(
     return q_vec, omega, sqw_extended
 
 
-def save_or_show_plot(output: str | None):
+def save_or_show_plot(output: str | None) -> None:
     if output:
         if os.path.exists(output):
             choice = input(f"File '{output}' already exists. Overwrite? (y/N): ").lower()
@@ -83,8 +82,8 @@ def save_or_show_plot(output: str | None):
         plt.show()
 
 
-def get_q_values_from_cmdline(q_str_vals: list[str], q_step: float | None) -> NDArray[np.float64]:
-    q_values: NDArray[np.float64]
+def get_q_values_from_cmdline(q_str_vals: list[str], q_step: float | None) -> Array1D[np.float64]:
+    q_values: Array1D[np.float64]
     if len(q_str_vals) == 1 and "-" in q_str_vals[0]:
         start_q, end_q = map(float, q_str_vals[0].split("-"))
         q_values = np.arange(start_q, end_q, q_step, dtype=np.float64)
