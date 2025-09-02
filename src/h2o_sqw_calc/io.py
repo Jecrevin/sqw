@@ -4,7 +4,7 @@ from numpy.typing import NDArray
 
 
 class NotH5FileError(Exception):
-    pass
+    """Not a valid HDF5 file."""
 
 
 def get_data_from_h5py[T: np.number](file_path: str, dataset_name: str) -> NDArray[T]:
