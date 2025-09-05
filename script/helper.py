@@ -1,6 +1,7 @@
 import os
 import sys
 from itertools import chain, zip_longest
+from typing import Literal
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -57,14 +58,14 @@ def get_stc_model_data(
     )
 
 
-def get_sqw_classical_data(
+def get_sqw_molecular_dynamics_data(
     element: str = "H", file_path: str = "data/merged_h2o_293k.sqw"
 ) -> tuple[Array1D[np.float64], Array1D[np.float64], Array1D[np.float64]]:
     keys = (f"qVec_{element}", f"inc_omega_{element}", f"inc_sqw_{element}")
-    data = [get_data_from_h5py(file_path, key) for key in keys]
-    q_vec, omega, sqw = data
+    q_vec, omega, sqw = [get_data_from_h5py(file_path, key) for key in keys]
+    omega_extended = odd_extend(omega)
     sqw_extended = np.apply_along_axis(even_extend, -1, sqw)
-    return q_vec, omega, sqw_extended
+    return q_vec, omega_extended, sqw_extended
 
 
 def save_or_show_plot(output: str | None) -> None:
