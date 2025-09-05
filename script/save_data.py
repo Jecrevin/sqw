@@ -1,4 +1,5 @@
 import sys
+from functools import partial
 from typing import Final, Literal
 
 import h5py
@@ -25,38 +26,28 @@ def main() -> None:
 
     assert gamma_cls is not None, "`include_classical` must set to True to get classical data."
 
-    omega_cdft, sqw_cdft_data = zip(
-        *map(lambda q: _interpolate_data(*sqw_cdft(q, time_vec, gamma_qtm)), q_vals), strict=True
+    omega = np.linspace(-10 / HBAR, 10 / HBAR, 3000)
+
+    sqw_cdft_data = map(lambda q: _interpolate_data(omega, *sqw_cdft(q, time_vec, gamma_qtm)), q_vals)
+    sqw_qc_data = map(
+        lambda q: _interpolate_data(omega, *sqw_qtm_correction_factor(q, time_vec, gamma_qtm, gamma_cls)), q_vals
     )
-    omega_qc, sqw_qc_data = zip(
-        *map(lambda q: _interpolate_data(*sqw_qtm_correction_factor(q, time_vec, gamma_qtm, gamma_cls)), q_vals),
-        strict=True,
-    )
-    omega_gaaqc, sqw_gaaqc_data = zip(
-        *map(
-            lambda q, sqw_md: _interpolate_data(*sqw_gaaqc(q, time_vec, gamma_qtm, gamma_cls, omega_md, sqw_md)),
-            q_vals,
-            sqw_md_vals,
-        ),
-        strict=True,
+    sqw_gaaqc_data = map(
+        lambda q, sqw_md: _interpolate_data(omega, *sqw_gaaqc(q, time_vec, gamma_qtm, gamma_cls, omega_md, sqw_md)),
+        q_vals,
+        sqw_md_vals,
     )
 
     with h5py.File("data/h2o_sqw_results.h5", "w") as f:
-        f.create_dataset("qVals", data=q_vals)
-        f.create_dataset("omega_cdft", data=omega_cdft)
-        f.create_dataset("sqw_cdft", data=sqw_cdft_data)
-        f.create_dataset("omega_qtm_correction", data=omega_qc)
-        f.create_dataset("sqw_qtm_correction", data=sqw_qc_data)
-        f.create_dataset("omega_gaaqc", data=omega_gaaqc)
-        f.create_dataset("sqw_gaaqc", data=sqw_gaaqc_data)
+        f.create_dataset("q_vals", data=q_vals)
+        f.create_dataset("omega", data=omega)
+        f.create_dataset("sqw_cdft", data=np.array(list(sqw_cdft_data)))
+        f.create_dataset("sqw_qtm_correction", data=np.array(list(sqw_qc_data)))
+        f.create_dataset("sqw_gaaqc", data=np.array(list(sqw_gaaqc_data)))
 
 
-def _interpolate_data(omega: Array1D, data: Array1D, data_num: int = 3000):
-    omega_min, omega_max = -10 / HBAR, 10 / HBAR
-    omega_interped = np.linspace(omega_min, omega_max, data_num)
-    data_interped = CubicSpline(omega, data)(omega_interped)[:]
-
-    return omega_interped, data_interped
+def _interpolate_data(omega_interped: Array1D, omega: Array1D, data: Array1D):
+    return CubicSpline(omega, data)(omega_interped)[:]
 
 
 if __name__ == "__main__":
