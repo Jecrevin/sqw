@@ -6,6 +6,7 @@ import numpy as np
 from helper import get_gamma_data, get_stc_model_data, save_or_show_plot
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
+from scipy.interpolate import CubicSpline
 
 from h2o_sqw_calc.core import HBAR, sqw_cdft, sqw_stc_model
 
@@ -120,7 +121,7 @@ def main():
 
     sqw = np.stack(
         [
-            np.interp(omega, omega_val, sqw_val, left=0, right=0)
+            CubicSpline(omega_val, sqw_val, extrapolate=False)(omega)
             for sqw_val, omega_val in zip(sqw_vals, omega_vals, strict=True)
         ]
     )
@@ -140,8 +141,8 @@ def main():
         extent=(q_vals.min(), q_vals.max(), y_coords.min(), y_coords.max()),
         origin="lower",
         aspect="auto",
-        cmap="viridis",
-        norm=LogNorm(),
+        cmap="jet",
+        norm=LogNorm(vmin=1e-27),
         interpolation="none",
     )
     plt.plot(q_vals, stc_max * HBAR if ENERGY_UNIT else stc_max, color="red", label="STC Model Max", linestyle="--")
