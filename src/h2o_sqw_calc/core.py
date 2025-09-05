@@ -4,12 +4,14 @@ from typing import Final
 
 import numpy as np
 import scipy.constants as consts
-from numpy.typing import NDArray
 from scipy.constants import pi as PI
+from scipy.interpolate import CubicSpline
 
 from .math import (
     continuous_fourier_transform,
     is_all_array_1d,
+    linear_convolve,
+    linear_convolve_x_axis,
     self_linear_convolve,
     self_linear_convolve_x_axis,
     trim_function,
@@ -73,7 +75,7 @@ def _sqw_cdft_recursive[T: np.complexfloating, U: np.floating](
     dt: float,
     dw: float,
     logger: Callable[[str], None] | None,
-) -> tuple[Array1D[np.floating], NDArray[np.complex128]]:
+) -> tuple[Array1D[np.floating], Array1D[np.complex128]]:
     """Helper function to calculate S(q, w) using CDFT with logging."""
     gamma: Array1D[T] = np.array(gamma_tuple)
     omega: Array1D[U] = np.array(omega_tuple)
@@ -127,3 +129,56 @@ def sqw_cdft[T: np.floating, U: np.complexfloating](
         logger(f"S(q, w) calculation for q = {q:.2f} completed.")
 
     return result
+
+
+def _get_sqw_qc(
+    q: float, time_vec: Array1D, gamma_qtm: Array1D, gamma_cls: Array1D, logger: Callable[[str], None] | None
+):
+    dt = np.mean(np.diff(time_vec))
+    omega = np.fft.fftshift(np.fft.fftfreq(time_vec.size, dt)) * 2 * PI
+    dw = np.mean(np.diff(omega))
+
+    gamma_tuple = tuple(gamma_qtm - gamma_cls)
+    omega_tuple = tuple(omega)
+
+    return _sqw_cdft_recursive(q, gamma_tuple, omega_tuple, dt, dw, logger)
+
+
+def sqw_qtm_correction_factor(
+    q: float, time_vec: Array1D, gamma_qtm: Array1D, gamma_cls: Array1D, *, logger: Callable[[str], None] | None = print
+):
+    if not is_all_array_1d(time_vec, gamma_qtm, gamma_cls):
+        raise ValueError("Input arrays must be one-dimensional!")
+    if not (q > 0):
+        raise ValueError("Momentum transfer `q` must be greater than 0!")
+
+    return _get_sqw_qc(q, time_vec, gamma_qtm, gamma_cls, logger)
+
+
+def sqw_gaaqc(
+    q: float,
+    time_vec: Array1D,
+    gamma_qtm: Array1D,
+    gamma_cls: Array1D,
+    omega_md: Array1D,
+    sqw_md: Array1D,
+    *,
+    logger: Callable[[str], None] | None = print,
+):
+    if not is_all_array_1d(time_vec, gamma_qtm, gamma_cls, omega_md, sqw_md):
+        raise ValueError("Input arrays must be one-dimensional!")
+    if not (q > 0):
+        raise ValueError("Momentum transfer `q` must be greater than 0!")
+
+    omega_qc, sqw_qc = _get_sqw_qc(q, time_vec, gamma_qtm, gamma_cls, logger)
+
+    dw_qc = np.mean(np.diff(omega_qc))
+    dw_md = np.mean(np.diff(omega_md))
+
+    if not np.isclose(dw_qc, dw_md, atol=0):
+        n_points = int(np.round((omega_qc[-1] - omega_qc[0]) / dw_md)) + 1
+        omega_qc_interped = np.linspace(omega_qc[0], omega_qc[-1], n_points)
+        sqw_qc = CubicSpline(omega_qc, sqw_qc, extrapolate=False)(omega_qc_interped)
+        omega_qc = omega_qc_interped
+
+    return linear_convolve_x_axis(omega_qc, omega_md), linear_convolve(sqw_qc, sqw_md, dw_md)  # type: ignore
