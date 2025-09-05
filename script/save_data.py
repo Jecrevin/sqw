@@ -1,5 +1,4 @@
 import sys
-from functools import partial
 from typing import Final, Literal
 
 import h5py
