@@ -210,13 +210,11 @@ def self_linear_convolve[T: np.number](fx: Array1D[T], dx: float | int | np.numb
     return _do_linear_convolve(fx, fx, dx)
 
 
-def _get_linear_convolve_x_axis[T: np.number, U: np.number](
-    x1: Array1D[T], x2: Array1D[U]
-) -> Array1D[np.floating]:
+def _get_linear_convolve_x_axis[T: np.number, U: np.number](x1: Array1D[T], x2: Array1D[U]) -> Array1D[T | U]:
     return np.linspace(x1[0] + x2[0], x1[-1] + x2[-1], x1.size + x2.size - 1)
 
 
-def linear_convolve_x_axis[T: np.number, U: np.number](x1: Array1D[T], x2: Array1D[U]) -> Array1D[np.floating]:
+def linear_convolve_x_axis[T: np.number, U: np.number](x1: Array1D[T], x2: Array1D[U]) -> Array1D[T | U]:
     """Calculate the x-axis for the convolution of two signals.
 
     The signals are assumed to be sampled on linearly spaced grids.
@@ -258,7 +256,7 @@ def linear_convolve_x_axis[T: np.number, U: np.number](x1: Array1D[T], x2: Array
     return _get_linear_convolve_x_axis(x1, x2)
 
 
-def self_linear_convolve_x_axis[T: np.number](x: Array1D[T]) -> Array1D[np.floating]:
+def self_linear_convolve_x_axis[T: np.number](x: Array1D[T]) -> Array1D[T]:
     """Calculate the x-axis for the self-convolution of a signal.
 
     Parameters
@@ -351,8 +349,6 @@ def trim_function[T: np.number, U: np.number](
     y_abs = np.abs(y)
     threshold = np.max(y_abs) * cut_ratio
 
-    significant_indices = np.where(y_abs > threshold)[0]
-    if significant_indices.size > 0:
-        start, end = significant_indices[0], significant_indices[-1] + 1
-        return x[start:end], y[start:end]
-    return x, y
+    significant_indices = np.nonzero(y_abs > threshold)[0]
+    start, end = significant_indices[0], significant_indices[-1] + 1
+    return x[start:end], y[start:end]
