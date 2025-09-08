@@ -34,7 +34,7 @@ def sqw_stc_model(
     mass_num: int = 1,
 ) -> Array1D[np.float64]:
     """
-    Calculate Scattering function S(q, w) using Short Time Collision Approximation (STC) model.
+    Calculate Scattering function S(q,w) using Short Time Collision Approximation (STC) model.
     """
     if not (q > 0):
         raise ValueError("Momentum transfer `q` must be greater than 0!")
@@ -76,30 +76,33 @@ def _sqw_cdft_recursive[T: np.complexfloating, U: np.floating](
     dw: float,
     logger: Callable[[str], None] | None,
 ) -> tuple[Array1D[np.floating], Array1D[np.complex128]]:
-    """Helper function to calculate S(q, w) using CDFT with logging."""
+    """Helper function to calculate S(q,w) using CDFT with logging."""
     gamma: Array1D[T] = np.array(gamma_tuple)
     omega: Array1D[U] = np.array(omega_tuple)
 
     if logger:
-        logger(f"Calculating CDFT recursively for q = {q:.2f} ...")
+        logger(f"Calculating CDFT recursively for {q = :.2f} ...")
 
     if q <= 5:
         result = omega, continuous_fourier_transform(np.exp(-(q**2) * gamma / 2), 1 / dt) / (2 * PI)
 
         if logger:
-            logger(f"=> done with q = {q:.2f}.")
+            logger(f"done with {q = :.2f}.")
 
         return result
 
     recur_q = round(q / np.sqrt(2), 8)
     x_recur, y_recur = trim_function(
-        *_sqw_cdft_recursive(recur_q, gamma_tuple, omega_tuple, dt, dw, logger), cut_ratio=1e-9
+        *_sqw_cdft_recursive(
+            recur_q, gamma_tuple, omega_tuple, dt, dw, lambda s: logger("=> " + s) if logger else None
+        ),
+        cut_ratio=1e-9,
     )
 
     results = self_linear_convolve_x_axis(x_recur), self_linear_convolve(y_recur, dw).astype(np.complex128)
 
     if logger:
-        logger(f"=> done with q = {q:.2f}.")
+        logger(f"done with {q = :.2f}.")
 
     return results
 
@@ -126,7 +129,7 @@ def sqw_cdft[T: np.floating, U: np.complexfloating](
     result = _sqw_cdft_recursive(q, gamma_tuple, omega_tuple, dt, dw, logger=logger)
 
     if logger:
-        logger(f"S(q, w) calculation for q = {q:.2f} completed.")
+        logger(f"S(q,w) calculation for {q = :.2f} all completed!")
 
     return result
 
