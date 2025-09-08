@@ -22,6 +22,7 @@ def main():
     ELEMENT: Final[Literal["H", "O"]] = args.element
     MASS_NUM: Final[int] = args.mass_num
     USE_ENERGY_UNIT: Final[bool] = args.energy_unit
+    NSAMPLES: Final[int] = args.nsamples
     OUTPUT: Final[str | None] = args.output
     try:
         Q_VALUES: Final[Array1D[np.float64]] = parse_q_values([args.q_values], step=5)
@@ -52,7 +53,7 @@ def main():
     print("CDFT S(q,w) values calculated successfully!")
     print("Interpolating S(q,w) values on a common frequency grid...")
 
-    omega = np.linspace(-10 / HBAR, 4 / HBAR, 3000)
+    omega = np.linspace(-10 / HBAR, 4 / HBAR, NSAMPLES)
 
     sqw_abs_vals = np.stack(
         [
@@ -133,6 +134,12 @@ def setup_parser() -> argparse.ArgumentParser:
         "--energy-unit",
         action="store_true",
         help="Use energy unit (eV) for x-axis instead of angular frequency (rad/s).",
+    )
+    parser.add_argument(
+        "--nsamples",
+        type=int,
+        default=3000,
+        help="Number of samples for plot interpolation of S(q,w) (default: 3000).",
     )
     parser.add_argument(
         "-o",
