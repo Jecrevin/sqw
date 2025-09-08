@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
 from scipy.interpolate import CubicSpline
 
-from h2o_sqw_calc.core import HBAR, sqw_cdft, sqw_stc_model
+from h2o_sqw_calc.core import HBAR, NEUTRON_MASS, sqw_cdft
 from h2o_sqw_calc.typing import Array1D
 
 
@@ -20,8 +20,8 @@ def main():
     GAMMA_FILE_PATH: Final[str] = args.gamma_file_path
     STC_FILE_PATH: Final[str] = args.stc_file_path
     ELEMENT: Final[Literal["H", "O"]] = args.element
-    TEMPERATURE: Final[float] = args.temperature  # unit: K
-    ENERGY_UNIT: Final[bool] = args.energy_unit
+    MASS_NUM: Final[int] = args.mass_num
+    USE_ENERGY_UNIT: Final[bool] = args.energy_unit
     OUTPUT: Final[str | None] = args.output
     try:
         Q_VALUES: Final[Array1D[np.float64]] = parse_q_values([args.q_values], step=5)
@@ -44,13 +44,13 @@ def main():
         sys.exit(f"Error occured while reading gamma data: {e}")
 
     print("Gamma data loaded successfully.")
-    print("Calculating CDFT S(Q, w) values...")
+    print("Calculating CDFT S(q,w) values...")
 
     sqw_results = [sqw_cdft(q, time, gamma) for q in Q_VALUES]
     omega_vals, sqw_vals = zip(*sqw_results, strict=True)
 
-    print("CDFT S(Q, w) values calculated successfully!")
-    print("Interpolating S(Q, w) values on a common frequency grid...")
+    print("CDFT S(q,w) values calculated successfully!")
+    print("Interpolating S(q,w) values on a common frequency grid...")
 
     omega = np.linspace(-10 / HBAR, 4 / HBAR, 3000)
 
@@ -61,16 +61,16 @@ def main():
         ]
     )
 
-    print("S(Q, w) values interpolated successfully!")
+    print("S(q,w) values interpolated successfully!")
     print("Getting max point of  STC Model...")
 
-    stc_max = np.array([omega[sqw_stc_model(q, omega, freq_dos, dos, TEMPERATURE).argmax()] for q in Q_VALUES])
+    stc_max = np.array([-HBAR * q**2 / 2 / NEUTRON_MASS / MASS_NUM for q in Q_VALUES])
 
     print("Max points of STC Model obtained successfully!")
     print("Plotting results...")
 
     plt.figure(figsize=(10, 8), layout="constrained")
-    y_coords = omega * HBAR if ENERGY_UNIT else omega
+    y_coords = omega * HBAR if USE_ENERGY_UNIT else omega
     plt.imshow(
         sqw_abs_vals.T,
         extent=(Q_VALUES.min(), Q_VALUES.max(), y_coords.min(), y_coords.max()),
@@ -80,11 +80,19 @@ def main():
         norm=LogNorm(vmin=1e-27),
         interpolation="none",
     )
-    plt.plot(Q_VALUES, stc_max * HBAR if ENERGY_UNIT else stc_max, color="red", label="STC Model Max", linestyle="--")
-    plt.xlabel("Momentum Transfer (Q) [Angstrom^-1]", fontsize=14)
-    plt.ylabel("Energy (eV)" if ENERGY_UNIT else "Angular Frequency (rad/s)", fontsize=14)
+    plt.ylim(y_coords.min())
+    plt.plot(
+        Q_VALUES,
+        stc_max * HBAR if USE_ENERGY_UNIT else stc_max,
+        label="STC Model Max",
+        color="tab:red",
+        linestyle="--",
+        clip_on=True,
+    )
+    plt.xlabel("Momentum Transfer $q$ (Å⁻¹)", fontsize=14)
+    plt.ylabel("Energy (eV)" if USE_ENERGY_UNIT else "Angular Frequency (rad/s)", fontsize=14)
     plt.colorbar(label=r"Scattering Function $S(q,\omega)$ (b·eV⁻¹·Sr⁻¹·ℏ⁻¹)")
-    plt.legend(loc="upper right", bbox_to_anchor=(0, 0, 1, 1.01))
+    plt.legend(loc="upper right")
     plt.grid()
 
     save_or_show_plot(OUTPUT)
@@ -116,11 +124,10 @@ def setup_parser() -> argparse.ArgumentParser:
         help="Element symbol for which to plot the S(q,w) function (default: H).",
     )
     parser.add_argument(
-        "-t",
-        "--temperature",
-        type=float,
-        default=293.0,
-        help="Temperature in Kelvin for the STC model calculation (default: 293 K).",
+        "--mass-num",
+        type=int,
+        default=1,
+        help="Neutron mass number (default: 1)",
     )
     parser.add_argument(
         "--energy-unit",
