@@ -155,6 +155,13 @@ def sqw_qtm_correction_factor(
     return _get_sqw_qc(q, time_vec, gamma_qtm, gamma_cls, logger)
 
 
+def _interp_sqw_qc(omega, omega_qc, sqw_qc):
+    sqw_norm, sqw_phase = np.abs(sqw_qc), np.unwrap(np.angle(sqw_qc))
+    sqw_norm_interped = CubicSpline(omega_qc, sqw_norm, extrapolate=False)(omega)
+    sqw_phase_interped = CubicSpline(omega_qc, sqw_phase, extrapolate=False)(omega)
+    return sqw_norm_interped * np.exp(1j * sqw_phase_interped)
+
+
 def sqw_gaaqc(
     q: float,
     time_vec: Array1D,
@@ -178,7 +185,7 @@ def sqw_gaaqc(
     if not np.isclose(dw_qc, dw_md, atol=0):
         n_points = int(np.round((omega_qc[-1] - omega_qc[0]) / dw_md)) + 1
         omega_qc_interped = np.linspace(omega_qc[0], omega_qc[-1], n_points)
-        sqw_qc = CubicSpline(omega_qc, sqw_qc, extrapolate=False)(omega_qc_interped)
+        sqw_qc = _interp_sqw_qc(omega_qc_interped, omega_qc, sqw_qc)
         omega_qc = omega_qc_interped
 
     return linear_convolve_x_axis(omega_qc, omega_md), linear_convolve(sqw_qc, sqw_md, dw_md)  # type: ignore
