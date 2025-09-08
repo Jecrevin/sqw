@@ -102,7 +102,7 @@ def _sqw_cdft_recursive[T: np.complexfloating, U: np.floating](
     results = self_linear_convolve_x_axis(x_recur), self_linear_convolve(y_recur, dw).astype(np.complex128)
 
     if logger:
-        logger(f"done with {q = :.2f}.")
+        logger(f"Done calculation for {q = :.2f}.")
 
     return results
 
