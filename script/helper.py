@@ -1,7 +1,6 @@
 import os
 import sys
 from itertools import chain, zip_longest
-from typing import Literal
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -33,25 +32,20 @@ def reorder_legend_by_row(handles: list[Artist], labels: list[str], ncol: int) -
 
 
 def get_gamma_data(
-    element: str = "H", file_path: str = "data/last_{element}.gamma", include_classical: bool = False
+    file_path: str, include_classical: bool = False
 ) -> tuple[Array1D[np.float64], Array1D[np.complex128], Array1D[np.float64] | None]:
-    gamma_file = file_path.format(element=element)
-    keys = ("time_vec", "gamma_qtm_real", "gamma_qtm_imag", "gamma_cls")
-    if not include_classical:
-        keys = keys[:-1]
+    all_keys = {"time_vec", "gamma_qtm_real", "gamma_qtm_imag", "gamma_cls"}
+    keys = all_keys if include_classical else all_keys - {"gamma_cls"}
 
-    data = [get_data_from_h5py(gamma_file, key) for key in keys]
-    extended_data = [even_extend(e) if i % 2 != 0 else odd_extend(e) for i, e in enumerate(data)]
-    time_vec = extended_data[0]
-    gamma_qtm = extended_data[1] + 1j * extended_data[2]
-    gamma_cls = extended_data[3] if include_classical else None
+    raw_data = {key: get_data_from_h5py(file_path, key) for key in keys}
+    time = odd_extend(raw_data["time_vec"])
+    gamma_qtm = even_extend(raw_data["gamma_qtm_real"]) + 1j * odd_extend(raw_data["gamma_qtm_imag"])
+    gamma_cls = even_extend(raw_data["gamma_cls"]) if include_classical else None
 
-    return time_vec, gamma_qtm, gamma_cls
+    return time, gamma_qtm, gamma_cls
 
 
-def get_stc_model_data(
-    element: str = "H", file_path: str = "data/last.sqw"
-) -> tuple[Array1D[np.float64], Array1D[np.float64]]:
+def get_stc_model_data(file_path: str, element: str) -> tuple[Array1D[np.float64], Array1D[np.float64]]:
     return (
         get_data_from_h5py(file_path, f"inc_omega_{element}"),
         get_data_from_h5py(file_path, f"inc_vdos_{element}"),
@@ -59,13 +53,15 @@ def get_stc_model_data(
 
 
 def get_sqw_molecular_dynamics_data(
-    element: str = "H", file_path: str = "data/merged_h2o_293k.sqw"
+    file_path: str, element: str
 ) -> tuple[Array1D[np.float64], Array1D[np.float64], Array1D[np.float64]]:
-    keys = (f"qVec_{element}", f"inc_omega_{element}", f"inc_sqw_{element}")
-    q_vec, omega, sqw = [get_data_from_h5py(file_path, key) for key in keys]
-    omega_extended = odd_extend(omega)
-    sqw_extended = np.apply_along_axis(even_extend, -1, sqw)
-    return q_vec, omega_extended, sqw_extended
+    q_vals_key, omega_key, sqw_vstack_key = f"qVec_{element}", f"omega_{element}", f"inc_sqw_{element}"
+
+    q_vals = get_data_from_h5py(file_path, q_vals_key)
+    omega = odd_extend(get_data_from_h5py(file_path, omega_key))
+    sqw_vstack_data = np.apply_along_axis(even_extend, -1, get_data_from_h5py(file_path, sqw_vstack_key))
+
+    return q_vals, omega, sqw_vstack_data
 
 
 def save_or_show_plot(output: str | None) -> None:
@@ -79,15 +75,24 @@ def save_or_show_plot(output: str | None) -> None:
         plt.savefig(output)
         print(f"Plot saved to {output}")
     else:
-        print("Displaying plot interactively.")
+        print("Displaying plot interactively...")
         plt.show()
 
 
-def get_q_values_from_cmdline(q_str_vals: list[str], q_step: float | None) -> Array1D[np.float64]:
-    q_values: Array1D[np.float64]
-    if len(q_str_vals) == 1 and "-" in q_str_vals[0]:
-        start_q, end_q = map(float, q_str_vals[0].split("-"))
-        q_values = np.arange(start_q, end_q, q_step, dtype=np.float64)
-    else:
-        q_values = np.array(q_str_vals, dtype=np.float64)
-    return q_values
+def _parse_q_interval(interval: str, default_step: float) -> set:
+    parts = list(map(float, interval.split(":")))
+    match parts:
+        case [single]:
+            return {single}
+        case [start, end]:
+            return set(np.arange(start, end + default_step / 2, default_step))
+        case [start, end, step]:
+            if step <= 0:
+                raise ValueError(f"Step must be positive in interval '{interval}'.")
+            return set(np.arange(start, end + step / 2, step))
+        case _:
+            raise ValueError(f"Invalid interval format: '{interval}'.")
+
+
+def parse_q_values(q_intervals_str: list[str], step: float = 1.0) -> Array1D[np.float64]:
+    return np.array(sorted(set.union(*(_parse_q_interval(q, step) for q in q_intervals_str))), dtype=np.float64)
