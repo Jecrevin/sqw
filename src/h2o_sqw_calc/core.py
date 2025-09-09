@@ -84,10 +84,10 @@ def _sqw_cdft_recursive[T: np.complexfloating, U: np.floating](
         logger(f"Calculating CDFT recursively for {q = :.2f} ...")
 
     if q <= 5:
-        result = omega, continuous_fourier_transform(np.exp(-(q**2) * gamma / 2), 1 / dt) / (2 * PI)
+        result = omega, continuous_fourier_transform(np.exp(-0.5 * q**2 * gamma), 1 / dt) / (2 * PI)
 
         if logger:
-            logger(f"done with {q = :.2f}.")
+            logger(f"Done calculation for {q = :.2f}.")
 
         return result
 
@@ -119,9 +119,9 @@ def sqw_cdft[T: np.floating, U: np.complexfloating](
     if not is_all_array_1d(time_vec, gamma):
         raise ValueError("Input arrays must be one-dimensional!")
 
-    dt = time_vec[1] - time_vec[0]
+    dt = np.mean(np.diff(time_vec))
     omega = np.fft.fftshift(np.fft.fftfreq(time_vec.size, dt)) * 2 * PI
-    dw = omega[1] - omega[0]
+    dw = np.mean(np.diff(omega))
 
     gamma_tuple = tuple(gamma)
     omega_tuple = tuple(omega)
