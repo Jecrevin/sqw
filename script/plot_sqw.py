@@ -25,6 +25,7 @@ def main():
     STC_FILE_PATH: Final[str] = args.stc_file_path
     ELEMENT: Final[Literal["H", "O"]] = args.element
     TEMPERATURE: Final[float] = args.temperature  # unit: K
+    SCALE: Final[Literal["linear", "log"]] = args.scale
     ENERGY_UNIT: Final[bool] = args.energy_unit
     OUTPUT: Final[str | None] = args.output
     try:
@@ -69,7 +70,9 @@ def main():
         x = omega * HBAR if ENERGY_UNIT else omega
         (stc_line,) = plt.plot(x, np.abs(sqw), label="CDFT Model")
         plt.plot(x, stc_sqw, label=f"STC Model    for {q = :.2f}", linestyle="--", color=stc_line.get_color())
-    plt.xlim((-10, 2) if ENERGY_UNIT else (-10 / HBAR, 2 / HBAR))
+    plt.xlim(-10 if ENERGY_UNIT else -10 / HBAR)
+    if SCALE == "log":
+        plt.yscale("log")
     plt.xlabel("Energy (eV)" if ENERGY_UNIT else "Angular Frequency (rad/s)", fontsize=14)
     plt.ylabel(r"Scattering Function $S(q,\omega)$ (b·eV⁻¹·Sr⁻¹·ℏ⁻¹)", fontsize=14)
     plt.grid()
@@ -110,6 +113,13 @@ def setup_parser() -> argparse.ArgumentParser:
         type=float,
         default=293.0,
         help="Temperature in Kelvin for the STC model calculation (default: 293 K).",
+    )
+    parser.add_argument(
+        "--scale",
+        type=str,
+        choices=["linear", "log"],
+        default="linear",
+        help="Scale for y-axis: 'linear' or 'log' (default: linear).",
     )
     parser.add_argument(
         "--energy-unit",
