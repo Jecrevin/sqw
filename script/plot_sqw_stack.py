@@ -1,5 +1,6 @@
 import argparse
 import sys
+from functools import partial
 from typing import Final, Literal
 
 import numpy as np
@@ -47,22 +48,15 @@ def main():
     print("Gamma data loaded successfully.")
     print("Calculating CDFT S(q,w) values...")
 
-    sqw_results = [sqw_cdft(q, time, gamma) for q in Q_VALUES]
-    omega_vals, sqw_vals = zip(*sqw_results, strict=True)
-
-    print("CDFT S(q,w) values calculated successfully!")
-    print("Interpolating S(q,w) values on a common frequency grid...")
+    sqw_results = map(partial(sqw_cdft, time_vec=time, gamma=gamma), Q_VALUES)
 
     omega = np.linspace(-10 / HBAR, 4 / HBAR, NSAMPLES)
 
-    sqw_abs_vals = np.stack(
-        [
-            CubicSpline(omega_val, np.abs(sqw_val), extrapolate=False)(omega)
-            for sqw_val, omega_val in zip(sqw_vals, omega_vals, strict=True)
-        ]
+    sqw_abs_vals = np.vstack(
+        [CubicSpline(omega_val, np.abs(sqw_val), extrapolate=False)(omega) for omega_val, sqw_val in sqw_results]
     )
 
-    print("S(q,w) values interpolated successfully!")
+    print("S(q,w) values calculated successfully!")
     print("Getting max point of  STC Model...")
 
     stc_max = np.array([-HBAR * q**2 / 2 / NEUTRON_MASS / MASS_NUM for q in Q_VALUES])
