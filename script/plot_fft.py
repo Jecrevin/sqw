@@ -78,8 +78,7 @@ def setup_parser() -> argparse.ArgumentParser:
         "q_values",
         nargs="+",
         type=str,
-        help="Momentum Transfer values (unit: angstrom^-1) or which to plot the S(q,w) function. "
-        "Format in START[:END[:STEP]] or list of values separated by space.",
+        help="Momentum Transfer values (unit: angstrom^-1), format in START[:END[:STEP]].",
     )
     parser.add_argument(
         "-o",
