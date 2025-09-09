@@ -55,7 +55,7 @@ def get_stc_model_data(file_path: str, element: str) -> tuple[Array1D[np.float64
 def get_sqw_molecular_dynamics_data(
     file_path: str, element: str
 ) -> tuple[Array1D[np.float64], Array1D[np.float64], Array1D[np.float64]]:
-    q_vals_key, omega_key, sqw_vstack_key = f"qVec_{element}", f"omega_{element}", f"inc_sqw_{element}"
+    q_vals_key, omega_key, sqw_vstack_key = f"qVec_{element}", f"inc_omega_{element}", f"inc_sqw_{element}"
 
     q_vals = get_data_from_h5py(file_path, q_vals_key)
     omega = odd_extend(get_data_from_h5py(file_path, omega_key))
