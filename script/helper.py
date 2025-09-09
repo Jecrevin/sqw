@@ -96,3 +96,21 @@ def _parse_q_interval(interval: str, default_step: float) -> set:
 
 def parse_q_values(q_intervals_str: list[str], step: float = 1.0) -> Array1D[np.float64]:
     return np.array(sorted(set.union(*(_parse_q_interval(q, step) for q in q_intervals_str))), dtype=np.float64)
+
+
+def parse_indices(indices: list[str], default_step: int = 1) -> Array1D[np.int_]:
+    all_indices = set()
+    for interval in indices:
+        parts = list(map(int, interval.split(":")))
+        match parts:
+            case [start, end, step]:
+                if step <= 0:
+                    raise ValueError("Step must be a positive integer.")
+                all_indices.update(range(start, end + 1, step))
+            case [start, end]:
+                all_indices.update(range(start, end + 1, default_step))
+            case [single]:
+                all_indices.add(single)
+            case _:
+                raise ValueError(f"Invalid interval format: '{interval}'")
+    return np.array(sorted(all_indices), dtype=np.int_)
