@@ -3,38 +3,59 @@ import sys
 from typing import Final, Literal
 
 import numpy as np
-from helper import even_extend, odd_extend, save_or_show_plot
+from helper import get_sqw_molecular_dynamics_data, parse_indices, reorder_legend_by_row, save_or_show_plot
 from matplotlib import pyplot as plt
 from numpy.typing import NDArray
 
-from h2o_sqw_calc.io import get_data_from_h5py
+from h2o_sqw_calc.core import HBAR
+from h2o_sqw_calc.typing import Array1D
 
 
 def main():
-    args = _parse_args()
+    parser = setup_parser()
 
-    INDEXS: Final[list[int]] = _get_indexs(args.indexs, args.step)
-    FILE_PATH: Final[str] = args.file_path
+    args = parser.parse_args()
+
+    MD_FILE_PATH: Final[str] = args.md_file_path
+    INDICES: Final[Array1D[np.int_]] = parse_indices(args.indices)
     ELEMENT: Final[Literal["H", "O"]] = args.element
+    USE_ENERGY_UNIT: Final[bool] = args.energy_unit
+    SCALE: Final[Literal["linear", "log"]] = args.scale
     OUTPUT: Final[str | None] = args.output
 
-    print(f"Reading data from {FILE_PATH}...")
+    print(f"Reading data from {MD_FILE_PATH}...")
 
     try:
-        sqw_md_data: NDArray[np.float64] = np.apply_along_axis(
-            even_extend,
-            -1,
-            get_data_from_h5py(FILE_PATH, f"inc_sqw_{ELEMENT}"),
-        )
-        q_vec: NDArray[np.float64] = get_data_from_h5py(FILE_PATH, f"qVec_{ELEMENT}")
-        omega: NDArray[np.float64] = odd_extend(get_data_from_h5py(FILE_PATH, f"inc_omega_{ELEMENT}"))
+        q_values, omega, sqw_md_vstack = get_sqw_molecular_dynamics_data(MD_FILE_PATH, ELEMENT)
     except Exception as e:
         sys.exit(f"Error occured while reading data: {e}")
 
     print("Data loaded successfully.")
-    print(f"Plotting S(Q, w) for Element '{ELEMENT}'...")
+    print(f"Plotting S(q,w) for Element '{ELEMENT}'...")
 
-    _plot_sqw_md(q_vec, omega, sqw_md_data, INDEXS)
+    plt.figure(figsize=(10, 6))
+    for idx in INDICES:
+        if idx < 0 or idx >= sqw_md_vstack.shape[0]:
+            print(f"Warning: Index {idx} is out of bounds. Skipping this index.")
+            continue
+        sqw_md_data: NDArray[np.float64] = sqw_md_vstack[idx, :]
+        q = q_values[idx]
+        x = omega * HBAR if USE_ENERGY_UNIT else omega
+        plt.plot(x, sqw_md_data, label=f"{q = :.2f}")
+    plt.yscale(SCALE)
+    plt.xlabel("Energy (eV)" if USE_ENERGY_UNIT else "Angular Frequency (rad/s)", fontsize=14)
+    plt.ylabel(r"Scattering Function $S(q,\omega)$ (b·eV⁻¹·Sr⁻¹·ℏ⁻¹)", fontsize=14)
+    plt.grid()
+    if len(INDICES) > 10:
+        ncol = 5
+        plt.legend(
+            *reorder_legend_by_row(*plt.gca().get_legend_handles_labels(), ncol),
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.1),
+            ncol=ncol,
+        )
+    else:
+        plt.legend(loc="upper left")
 
     print("Plotting completed.")
 
@@ -43,36 +64,38 @@ def main():
     print("Program completed successfully.")
 
 
-def _parse_args() -> argparse.Namespace:
-    argparser = argparse.ArgumentParser(description="Plot the Classical Scattering Function S(Q, w).")
-
-    argparser.add_argument(
-        "indexs",
+def setup_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Plot the Classical Scattering Function S(q,w).")
+    parser.add_argument(
+        "md_file_path",
+        type=str,
+        help="File path to the HDF5 file containing the MD simulation data.",
+    )
+    parser.add_argument(
+        "indices",
+        type=str,
         nargs="+",
-        type=str,
-        help="List of indices or ranges (e.g., 1,2,5-10) to plot.",
+        help="Indices of MD simulation data to plot GAAQC from, formatted in START[:END[:STEP]]",
     )
-    argparser.add_argument(
-        "--step",
-        type=int,
-        default=1,
-        help="Step size for ranges in indices (default: 1).",
-    )
-    argparser.add_argument(
-        "-f",
-        "--file-path",
-        type=str,
-        default="data/merged_h2o_293k.sqw",
-        help="Path to the data file (default: data/merged_h2o_293k.sqw).",
-    )
-    argparser.add_argument(
+    parser.add_argument(
         "--element",
         type=str,
         choices=["H", "O"],
         default="H",
         help="Element symbol to plot (default: H).",
     )
-    argparser.add_argument(
+    parser.add_argument(
+        "--energy-unit",
+        action="store_true",
+        help="Use energy unit (eV) for x-axis instead of angular frequency (rad/s).",
+    )
+    parser.add_argument(
+        "--scale",
+        choices=["linear", "log"],
+        default="linear",
+        help="Scale for the y-axis of the plot (default: linear).",
+    )
+    parser.add_argument(
         "-o",
         "--output",
         nargs="?",
@@ -80,38 +103,7 @@ def _parse_args() -> argparse.Namespace:
         const="fig/sqw_md_plot.png",
         help="Output file name for the plot (default: fig/sqw_md_plot.png).",
     )
-
-    return argparser.parse_args()
-
-
-def _get_indexs(indexs: list[str], step: int) -> list[int]:
-    result: list[int] = []
-    for part in indexs:
-        if "-" in part:
-            start, end = map(int, part.split("-"))
-            result.extend(range(start, end + 1, step))
-        else:
-            result.append(int(part))
-    return sorted(set(result))
-
-
-def _plot_sqw_md(
-    q_vals: NDArray[np.floating],
-    omega: NDArray[np.floating],
-    sqw_cls_data: NDArray[np.floating],
-    indexs: list[int],
-) -> None:
-    plt.figure(figsize=(10, 8), layout="constrained")
-    for idx in indexs:
-        if idx < 0 or idx >= sqw_cls_data.shape[0]:
-            print(f"Warning: Index {idx} is out of bounds. Skipping.")
-            continue
-        plt.plot(omega, sqw_cls_data[idx], label=f"Q = {q_vals[idx]:.2f} Å⁻¹")
-    plt.xlabel("Angular Frequency (rad/s)")
-    plt.ylabel("Arbitrary Units")
-    plt.title("Scattering Function S(Q, w) Data from Molecular Dynamics Simulation")
-    plt.legend()
-    plt.grid()
+    return parser
 
 
 if __name__ == "__main__":
