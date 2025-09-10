@@ -17,8 +17,11 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if not args.sqw and args.scale != "linear":
-        print("Warning: --scale option is only applicable when --sqw is set. Ignoring --scale option.")
+    if not args.sqw:
+        if args.scale != "linear":
+            print("Warning: --scale option is only applicable when --sqw is set. Ignoring --scale option.")
+        if args.energy_unit:
+            print("Warning: --energy-unit option is only applicable when --sqw is set. Ignoring --energy-unit option.")
 
     GAMMA_FILE_PATH: Final[str] = args.gamma_file_path
     PLOT_SQW: Final[bool] = args.sqw
@@ -52,8 +55,7 @@ def main() -> None:
     if PLOT_SQW:
         for q, qc_res in zip(Q_VALUES, qc_results, strict=True):
             plt.plot(qc_res[0] * HBAR, np.abs(qc_res[1]), label=f"{q = :.2f}")
-        if SCALE == "log":
-            plt.yscale("log")
+        plt.yscale(SCALE)
         plt.xlabel(r"Energy (eV)", fontsize=14)
     else:
         for q, qc_data in zip(Q_VALUES, qc_results, strict=True):
@@ -90,6 +92,11 @@ def setup_parser() -> argparse.ArgumentParser:
         "--sqw",
         action="store_true",
         help="Plot the correction factor for the SQW (Scattering Function) instead of SISF.",
+    )
+    parser.add_argument(
+        "--energy-unit",
+        action="store_true",
+        help="Use energy unit (eV) for x-axis instead of angular frequency (rad/s).",
     )
     parser.add_argument(
         "--scale",
