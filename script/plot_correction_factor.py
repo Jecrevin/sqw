@@ -1,5 +1,6 @@
 import argparse
 import sys
+from functools import partial
 from typing import Final
 
 import numpy as np
@@ -7,6 +8,7 @@ import scipy.constants as consts
 from helper import get_gamma_data, parse_q_values, save_or_show_plot
 from matplotlib import pyplot as plt
 
+from h2o_sqw_calc.core import HBAR, sqw_qtm_correction_factor
 from h2o_sqw_calc.typing import Array1D
 
 
@@ -15,7 +17,12 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    if not args.sqw and args.scale != "linear":
+        print("Warning: --scale option is only applicable when --sqw is set. Ignoring --scale option.")
+
     GAMMA_FILE_PATH: Final[str] = args.gamma_file_path
+    PLOT_SQW: Final[bool] = args.sqw
+    SCALE: Final[str] = args.scale
     OUTPUT: Final[str | None] = args.output
     try:
         Q_VALUES: Final[Array1D[np.float64]] = parse_q_values(args.q_values)
@@ -34,12 +41,24 @@ def main() -> None:
     print("Gamma data loaded successfully.")
     print("Calculating correction factors...")
 
-    qtm_correction_factors = map(lambda q: np.exp(-0.5 * q**2 * (gamma_qtm - gamma_cls)), Q_VALUES)
+    get_qc = (
+        partial(sqw_qtm_correction_factor, time_vec=time_vec, gamma_qtm=gamma_qtm, gamma_cls=gamma_cls)
+        if PLOT_SQW
+        else lambda q: np.exp(-0.5 * q**2 * (gamma_qtm - gamma_cls))
+    )
+    qc_results = map(get_qc, Q_VALUES)
 
     plt.figure(figsize=(8, 6), layout="constrained")
-    for q, qtm_cf in zip(Q_VALUES, qtm_correction_factors, strict=True):
-        plt.semilogx(time_vec / consts.pico, np.abs(qtm_cf), label=f"{q = :.2f}", marker=",")
-    plt.xlabel("Time (ps)", fontsize=14)
+    if PLOT_SQW:
+        for q, qc_res in zip(Q_VALUES, qc_results, strict=True):
+            plt.plot(qc_res[0] * HBAR, np.abs(qc_res[1]), label=f"{q = :.2f}")
+        if SCALE == "log":
+            plt.yscale("log")
+        plt.xlabel(r"Energy (eV)", fontsize=14)
+    else:
+        for q, qc_data in zip(Q_VALUES, qc_results, strict=True):
+            plt.semilogx(time_vec / consts.pico, np.abs(qc_data), label=f"{q = :.2f}")
+        plt.xlabel("Time (ps)", fontsize=14)
     plt.ylabel("Absolute Value of Quantum Correction Factor", fontsize=14)
     plt.legend()
     plt.grid()
@@ -52,22 +71,34 @@ def main() -> None:
 
 
 def setup_parser() -> argparse.ArgumentParser:
-    argparser = argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         description="Plot the quantum correction factor for the Molecular "
         "Dynamics SISF (Self-Intermediate Scattering Function) results."
     )
-    argparser.add_argument(
+    parser.add_argument(
         "gamma_file_path",
         type=str,
         help="File path to the HDF5 file containing the gamma data.",
     )
-    argparser.add_argument(
+    parser.add_argument(
         "q_values",
         type=str,
         nargs="+",
         help="Momentum Transfer values (unit: angstrom^-1), format in START[:END[:STEP]].",
     )
-    argparser.add_argument(
+    parser.add_argument(
+        "--sqw",
+        action="store_true",
+        help="Plot the correction factor for the SQW (Scattering Function) instead of SISF.",
+    )
+    parser.add_argument(
+        "--scale",
+        type=str,
+        choices=["linear", "log"],
+        default="linear",
+        help="y-axis scale for SQW plot (default: linear).",
+    )
+    parser.add_argument(
         "-o",
         "--output",
         nargs="?",
@@ -75,7 +106,7 @@ def setup_parser() -> argparse.ArgumentParser:
         type=str,
         help="Output file name for the plot (default: fig/correction_factor_plot.png).",
     )
-    return argparser
+    return parser
 
 
 if __name__ == "__main__":
