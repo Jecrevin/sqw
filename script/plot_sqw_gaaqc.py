@@ -19,6 +19,7 @@ def main() -> None:
     MD_FILE_PATH: Final[str] = args.md_file_path
     ELEMENT: Final[Literal["H", "O"]] = args.elelement
     USE_ENERGY_UNIT: Final[bool] = args.energy_unit
+    SCALE: Final[str] = args.scale
     OUTPUT: Final[str | None] = args.output
     try:
         INDICES: Final[Array1D[np.int_]] = parse_indices(args.indices)
@@ -62,6 +63,7 @@ def main() -> None:
     plt.figure(figsize=(10, 6))
     for q, omega, sqw in zip(q_vals, omega_vals, sqw_gaaqc_vals, strict=True):
         plt.plot(omega * HBAR if USE_ENERGY_UNIT else omega, np.abs(sqw), label=f"{q = :.2f}")
+    plt.yscale(SCALE)
     plt.xlabel("Energy (eV)" if USE_ENERGY_UNIT else r"Angular Frequency $\omega$ (rad/s)", fontsize=14)
     plt.ylabel(r"Scattering Function $S(q,\omega)$ (b·eV⁻¹·Sr⁻¹·ℏ⁻¹)", fontsize=14)
     plt.legend()
@@ -103,6 +105,12 @@ def setup_parser() -> argparse.ArgumentParser:
         "--energy-unit",
         action="store_true",
         help="Use energy unit (eV) for x-axis instead of angular frequency (rad/s).",
+    )
+    parser.add_argument(
+        "--scale",
+        choices=["linear", "log"],
+        default="linear",
+        help="Scale for the y-axis of the plot (default: linear).",
     )
     parser.add_argument(
         "-o",
