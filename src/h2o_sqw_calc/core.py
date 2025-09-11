@@ -74,6 +74,8 @@ def _sqw_cdft_recursive[T: np.complexfloating, U: np.floating](
     omega_tuple: tuple[U, ...],
     dt: float,
     dw: float,
+    *,
+    qtm_correction: bool,
     logger: Callable[[str], None] | None,
 ) -> tuple[Array1D[np.floating], Array1D[np.complex128]]:
     """Helper function to calculate S(q,w) using CDFT with logging."""
@@ -84,27 +86,40 @@ def _sqw_cdft_recursive[T: np.complexfloating, U: np.floating](
         logger(f"Calculating CDFT recursively for {q = :.2f} ...")
 
     if q <= 5:
-        result = omega, continuous_fourier_transform(np.exp(-0.5 * q**2 * gamma), 1 / dt) / (2 * PI)
+        sisf = np.exp(-0.5 * q**2 * gamma)
+        signal = (np.abs(sisf) - np.abs(sisf).min()) * np.exp(1j * np.angle(sisf)) if qtm_correction else sisf
+        sqw = continuous_fourier_transform(signal, 1 / dt) / (2 * PI)
+        if qtm_correction:
+            sqw /= np.sqrt(np.trapezoid(np.abs(sqw) ** 2, omega))
 
         if logger:
             logger(f"Done calculation for {q = :.2f}.")
 
-        return result
+        return omega, sqw
 
     recur_q = round(q / np.sqrt(2), 8)
     x_recur, y_recur = trim_function(
         *_sqw_cdft_recursive(
-            recur_q, gamma_tuple, omega_tuple, dt, dw, lambda s: logger("=> " + s) if logger else None
+            recur_q,
+            gamma_tuple,
+            omega_tuple,
+            dt,
+            dw,
+            qtm_correction=qtm_correction,
+            logger=lambda s: logger("=> " + s) if logger else None,
         ),
         cut_ratio=1e-9,
     )
 
-    results = self_linear_convolve_x_axis(x_recur), self_linear_convolve(y_recur, dw).astype(np.complex128)
+    res_omega = self_linear_convolve_x_axis(x_recur)
+    res_sqw = self_linear_convolve(y_recur, dw).astype(np.complex128)
+    if qtm_correction:
+        res_sqw /= np.sqrt(np.trapezoid(np.abs(res_sqw) ** 2, res_omega))
 
     if logger:
         logger(f"Done calculation for {q = :.2f}.")
 
-    return results
+    return res_omega, res_sqw
 
 
 def sqw_cdft[T: np.floating, U: np.complexfloating](
@@ -126,7 +141,7 @@ def sqw_cdft[T: np.floating, U: np.complexfloating](
     gamma_tuple = tuple(gamma)
     omega_tuple = tuple(omega)
 
-    result = _sqw_cdft_recursive(q, gamma_tuple, omega_tuple, dt, dw, logger=logger)
+    result = _sqw_cdft_recursive(q, gamma_tuple, omega_tuple, dt, dw, qtm_correction=False, logger=logger)
 
     if logger:
         logger(f"S(q,w) calculation for {q = :.2f} all completed!")
@@ -144,7 +159,7 @@ def _get_sqw_qc(
     gamma_tuple = tuple(gamma_qtm - gamma_cls)
     omega_tuple = tuple(omega)
 
-    return _sqw_cdft_recursive(q, gamma_tuple, omega_tuple, dt, dw, logger)
+    return _sqw_cdft_recursive(q, gamma_tuple, omega_tuple, dt, dw, qtm_correction=True, logger=logger)
 
 
 def sqw_qtm_correction_factor(
