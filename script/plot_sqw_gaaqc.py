@@ -60,7 +60,7 @@ def main() -> None:
     print("Calculation completed.")
     print("Plotting results...")
 
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(10, 6), layout="constrained")
     for q, omega, sqw in zip(q_vals, omega_vals, sqw_gaaqc_vals, strict=True):
         plt.plot(omega * HBAR if USE_ENERGY_UNIT else omega, np.abs(sqw), label=f"{q = :.2f}")
     plt.yscale(SCALE)
