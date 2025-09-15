@@ -1,52 +1,111 @@
+import argparse
 import sys
+from functools import partial
 from typing import Final, Literal
 
 import h5py
 import numpy as np
-from helper import get_gamma_data
+from helper import get_gamma_data, get_sqw_molecular_dynamics_data
 from scipy.interpolate import CubicSpline
 
-from h2o_sqw_calc.core import HBAR, sqw_cdft, sqw_gaaqc, sqw_qtm_correction_factor
-from h2o_sqw_calc.io import get_data_from_h5py
-from h2o_sqw_calc.typing import Array1D
+from h2o_sqw_calc.core import HBAR, sqw_cdft, sqw_gaaqc
 
 
 def main() -> None:
-    ELEMENT: Final[Literal["H", "O"]] = "H"
-    MD_DATA_FILE: Final[str] = "data/merged_h2o_293k.sqw"
+    parser = setup_parser()
+
+    args = parser.parse_args()
+
+    GAMMA_FILE_PATH: Final[str] = args.gamma_file_path
+    MD_FILE_PATH: Final[str] = args.md_file_path
+    ELEMENT: Final[Literal["H", "O"]] = args.element
+    OUTPUT_FILE_PATH: Final[str] = args.output
+
+    print(f"Loading gamma function data from {GAMMA_FILE_PATH}...")
 
     try:
-        q_vals = get_data_from_h5py(MD_DATA_FILE, f"qVec_{ELEMENT}")
-        omega_md = get_data_from_h5py(MD_DATA_FILE, f"inc_omega_{ELEMENT}")
-        sqw_md_vals = get_data_from_h5py(MD_DATA_FILE, f"inc_sqw_{ELEMENT}")
-        time_vec, gamma_qtm, gamma_cls = get_gamma_data(ELEMENT, include_classical=True)
+        time_vec, gamma_qtm, gamma_cls = get_gamma_data(GAMMA_FILE_PATH, include_classical=True)
     except Exception as e:
-        sys.exit(f"Error loading data: {e}")
+        sys.exit(f"Error loading gamma function data: {e}")
 
-    assert gamma_cls is not None, "`include_classical` must set to True to get classical data."
+    assert gamma_cls is not None, "`include_classical` must be True to get classical gamma data."
 
-    omega = np.linspace(-10 / HBAR, 10 / HBAR, 3000)
+    print("Gamma function data loaded successfully.")
+    print("Loading MD simulation S(q,w) data...")
 
-    sqw_cdft_data = map(lambda q: _interpolate_data(omega, *sqw_cdft(q, time_vec, gamma_qtm)), q_vals)
-    sqw_qc_data = map(
-        lambda q: _interpolate_data(omega, *sqw_qtm_correction_factor(q, time_vec, gamma_qtm, gamma_cls)), q_vals
-    )
-    sqw_gaaqc_data = map(
-        lambda q, sqw_md: _interpolate_data(omega, *sqw_gaaqc(q, time_vec, gamma_qtm, gamma_cls, omega_md, sqw_md)),
+    try:
+        q_vals, omega_md, sqw_md_stack = get_sqw_molecular_dynamics_data(MD_FILE_PATH, element=ELEMENT)
+    except Exception as e:
+        sys.exit(f"Error loading MD simulation data: {e}")
+
+    print("MD simulation S(q,w) data loaded successfully.")
+    print("Calculating S(q,w) QTM, S(q,w) GAAQC...")
+
+    results_qtm = map(partial(sqw_cdft, time_vec=time_vec, gamma=gamma_qtm), q_vals)
+    results_gaaqc = map(
+        lambda q, sqw_md: sqw_gaaqc(q, time_vec, gamma_qtm, gamma_cls, omega_md, sqw_md),
         q_vals,
-        sqw_md_vals,
+        sqw_md_stack,
     )
 
-    with h5py.File("data/h2o_sqw_results.h5", "w") as f:
-        f.create_dataset("q_vals", data=q_vals)
-        f.create_dataset("omega", data=omega)
-        f.create_dataset("sqw_cdft", data=np.array(list(sqw_cdft_data)))
-        f.create_dataset("sqw_qtm_correction", data=np.array(list(sqw_qc_data)))
-        f.create_dataset("sqw_gaaqc", data=np.array(list(sqw_gaaqc_data)))
+    omega = np.linspace(-10 / HBAR, 4 / HBAR, 3000)
+
+    sqw_qtm_vstack = np.zeros((q_vals.size, omega.size), dtype=np.complex128)
+    for i, (o, sqw) in enumerate(results_qtm):
+        norm_interp = CubicSpline(o, np.abs(sqw), extrapolate=False)(omega)
+        phase_interp = CubicSpline(o, np.unwrap(np.angle(sqw)), extrapolate=False)(omega)
+        sqw_qtm_vstack[i] = norm_interp * np.exp(1j * phase_interp)
+
+    sqw_gaaqc_vstack = np.zeros((q_vals.size, omega.size), dtype=np.complex128)
+    for i, (o, sqw) in enumerate(results_gaaqc):
+        norm_interp = CubicSpline(o, np.abs(sqw), extrapolate=False)(omega)
+        phase_interp = CubicSpline(o, np.unwrap(np.angle(sqw)), extrapolate=False)(omega)
+        sqw_gaaqc_vstack[i] = norm_interp * np.exp(1j * phase_interp)
+
+    print("Calculations completed successfully.")
+    print(f"Saving results to {OUTPUT_FILE_PATH}...")
+
+    try:
+        with h5py.File(OUTPUT_FILE_PATH, "w") as f:
+            f.create_dataset("q_vals", data=q_vals)
+            f.create_dataset("omega", data=omega)
+            f.create_dataset("sqw_qtm", data=sqw_qtm_vstack)
+            f.create_dataset("sqw_gaaqc", data=sqw_gaaqc_vstack)
+    except Exception as e:
+        sys.exit(f"Error saving results to HDF5 file: {e}")
+
+    print(f"Results saved successfully to {OUTPUT_FILE_PATH}.")
+    print("Program completed successfully.")
 
 
-def _interpolate_data(omega_interped: Array1D, omega: Array1D, data: Array1D):
-    return CubicSpline(omega, data)(omega_interped)[:]
+def setup_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Save S(q,w) QTM and S(q,w) GAAQC data to HDF5 file.")
+    parser.add_argument(
+        "gamma_file_path",
+        type=str,
+        help="Path to the HDF5 file containing gamma function data (used for both QTM and QC calculations).",
+    )
+    parser.add_argument(
+        "md_file_path",
+        type=str,
+        help="Path to the HDF5 file containing MD simulation S(q,w) data (used for GAAQC calculation).",
+    )
+    parser.add_argument(
+        "-e",
+        "--element",
+        type=str,
+        choices=["H", "O"],
+        default="H",
+        help="Element type to process ('H' for Hydrogen, 'O' for Oxygen). Default is 'H'.",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default="data/h2o_sqw_calc_data.h5",
+        help="Output HDF5 file path to save the results. Default is 'data/h2o_sqw_calc_data.h5'.",
+    )
+    return parser
 
 
 if __name__ == "__main__":
