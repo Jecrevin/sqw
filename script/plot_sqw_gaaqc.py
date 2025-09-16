@@ -47,7 +47,7 @@ def main() -> None:
     print(f"Loading MD simulation data from file '{MD_FILE_PATH}'...")
 
     try:
-        q_vals, omega, sqw_md_vstack = get_sqw_molecular_dynamics_data(MD_FILE_PATH, ELEMENT)
+        q_vals, omega_md, sqw_md_vstack = get_sqw_molecular_dynamics_data(MD_FILE_PATH, ELEMENT)
     except Exception as e:
         sys.exit(f"Error loading MD data: {e}")
 
@@ -58,7 +58,7 @@ def main() -> None:
     sqw_md_vstack = sqw_md_vstack[INDICES]
 
     sqw_gaaqc_results = map(
-        lambda q, sqw_md: sqw_gaaqc(q, time_vec, gamma_qtm, gamma_cls, omega, sqw_md), q_vals, sqw_md_vstack
+        lambda q, sqw_md: sqw_gaaqc(q, time_vec, gamma_qtm, gamma_cls, omega_md, sqw_md), q_vals, sqw_md_vstack
     )
 
     print("Calculation completed.")
