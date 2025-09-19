@@ -30,6 +30,7 @@ def main():
     TEMPERATURE: Final[float] = args.temperature  # unit: K
     SCALE: Final[Literal["linear", "log"]] = args.scale
     ENERGY_UNIT: Final[bool] = args.energy_unit
+    RESTRICT_VIEW: Final[bool] = args.restrict_view
     OUTPUT: Final[str | None] = args.output
     try:
         Q_VALUES: Final[Array1D[np.float64]] = parse_q_values(args.q_values)
@@ -102,7 +103,8 @@ def main():
     plt.yscale(SCALE)
     x_min = -10 if ENERGY_UNIT else -10 / HBAR
     x_max = 2 if ENERGY_UNIT else 2 / HBAR
-    plt.xlim(max(plt.xlim()[0], x_min), min(plt.xlim()[1], x_max))
+    if RESTRICT_VIEW:
+        plt.xlim(x_min, x_max)
     plt.grid()
     plt.xlabel("Energy (eV)" if ENERGY_UNIT else r"Angular Frequency $\omega$ (rad/s)", fontsize=14)
     plt.ylabel(r"Scattering Function $S(q,\omega)$ (b·eV⁻¹·Sr⁻¹·ℏ⁻¹)", fontsize=14)
@@ -144,7 +146,7 @@ def setup_parser() -> argparse.ArgumentParser:
         "--temperature",
         type=float,
         default=293.0,
-        help="Temperature in Kelvin for the STC model calculation (default: 293 K).",
+        help="Temperature in Kelvin for the data generated from (default: 293 K).",
     )
     parser.add_argument(
         "--scale",
@@ -157,6 +159,12 @@ def setup_parser() -> argparse.ArgumentParser:
         "--energy-unit",
         action="store_true",
         help="Use energy unit (eV) for x-axis instead of angular frequency (rad/s).",
+    )
+    parser.add_argument(
+        "-r",
+        "--restrict-view",
+        action="store_true",
+        help="Restrict x-axis view to -10 to 2 eV (or equivalent in rad/s).",
     )
     parser.add_argument(
         "-o",
