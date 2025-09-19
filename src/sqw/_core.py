@@ -5,10 +5,10 @@ from typing import Final
 import numpy as np
 import scipy.constants as consts
 from scipy.constants import pi as PI
-from scipy.interpolate import CubicSpline
 
 from ._math import (
     continuous_fourier_transform,
+    interpolate_complex_function,
     is_all_array_1d,
     linear_convolve,
     linear_convolve_x_axis,
@@ -186,13 +186,6 @@ def sqw_quantum_correction_factor(
         raise ValueError("Momentum transfer `q` must be greater than 0!")
 
     return _sqw_qc(q, time_vec, gamma_qtm, gamma_cls, logger=logger)
-
-
-def _interp_sqw_qc(omega, omega_qc, sqw_qc):
-    sqw_norm, sqw_phase = np.abs(sqw_qc), np.unwrap(np.angle(sqw_qc))
-    sqw_norm_interped = CubicSpline(omega_qc, sqw_norm, extrapolate=False)(omega)
-    sqw_phase_interped = CubicSpline(omega_qc, sqw_phase, extrapolate=False)(omega)
-    return sqw_norm_interped * np.exp(1j * sqw_phase_interped)
 
 
 def sqw_gaaqc_model(

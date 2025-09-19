@@ -1,7 +1,8 @@
-from typing import Any, overload
+from typing import Any, cast, overload
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.interpolate import CubicSpline
 from scipy.signal import fftconvolve
 
 from ._typing import Array1D
@@ -327,3 +328,15 @@ def trim_function[T: np.inexact, U: np.inexact](
     start, end = significant_indices[0], significant_indices[-1] + 1
 
     return x[start:end], y[start:end]
+
+
+def interpolate_complex_function(
+    xp: Array1D[np.floating], x: Array1D[np.floating], fx: Array1D[np.complexfloating]
+) -> Array1D[np.complex128]:
+    fnorm: Array1D[np.float64] = np.abs(fx)
+    fphase: Array1D[np.float64] = cast(Array1D[np.float64], np.angle(fx))
+
+    fnorm_interped = CubicSpline(x, fnorm, extrapolate=False)(xp)
+    fphase_interped = CubicSpline(x, fphase, extrapolate=False)(xp)
+
+    return cast(Array1D[np.complex128], fnorm_interped * np.exp(1j * fphase_interped))
