@@ -75,9 +75,10 @@ def _sqw_ga_model[T: np.inexact, U: np.floating](
     dt: float,
     dw: float,
     *,
+    assure_detailed_balance: Callable[[Array1D[U], Array1D[np.complex128]], Array1D[np.complex128]] | None,
     logger: Callable[[str], None] | None,
 ) -> tuple[Array1D[U], Array1D[np.complex128]]:
-    """Helper function to calculate S(q,w) using CDFT with logging."""
+    """Helper function to calculate S(q,w) using Gaussian Approximation (GA) with logging."""
     gamma: Array1D[T] = np.array(gamma_tuple)
     omega: Array1D[U] = np.array(omega_tuple)
 
@@ -86,7 +87,12 @@ def _sqw_ga_model[T: np.inexact, U: np.floating](
 
     if q <= 5:  # direct calculation for small q
         sisf = np.exp(-0.5 * q**2 * gamma)  # Self-Intermediate Scattering Function
-        sqw = continuous_fourier_transform(sisf, 1 / dt) / (2 * PI)
+        sqw_raw = continuous_fourier_transform(sisf, 1 / dt) / (2 * PI)
+
+        if not assure_detailed_balance and logger:
+            logger("Warning: Detailed balance is not assured!")
+
+        sqw = assure_detailed_balance(omega, sqw_raw) if assure_detailed_balance else sqw_raw
 
         if logger:
             logger(f"Done calculation for {q = :.2f}.")
@@ -97,7 +103,9 @@ def _sqw_ga_model[T: np.inexact, U: np.floating](
     recur_logger = (lambda s: logger("=> " + s)) if logger else None
 
     # recursive calculation for larger q
-    x_recur, y_recur = _sqw_ga_model(recur_q, gamma_tuple, omega_tuple, dt, dw, logger=recur_logger)
+    x_recur, y_recur = _sqw_ga_model(
+        recur_q, gamma_tuple, omega_tuple, dt, dw, assure_detailed_balance=assure_detailed_balance, logger=recur_logger
+    )
 
     # trim the value at front and end which nearly zero to speed up the convolution
     x_recur_trimed, y_recur_trimed = trim_function(x_recur, y_recur, cut_ratio=1e-9)
@@ -111,11 +119,12 @@ def _sqw_ga_model[T: np.inexact, U: np.floating](
     return res_omega, res_sqw
 
 
-def sqw_ga_model[T: np.floating, U: np.complexfloating](
+def sqw_ga_model[T: np.floating, U: np.inexact](
     q: float,
     time_vec: Array1D[T],
     gamma: Array1D[U],
     *,
+    assure_detailed_balance: Callable[[Array1D[U], Array1D[np.complex128]], Array1D[np.complex128]] | None = None,
     logger: Callable[[str], None] | None = print,
 ) -> tuple[Array1D[np.floating], Array1D[np.complex128]]:
     """Calculate S(q,w) using Gaussian Approximation (GA) model.
@@ -149,6 +158,8 @@ def sqw_ga_model[T: np.floating, U: np.complexfloating](
         raise ValueError("Momentum transfer `q` must be greater than 0!")
     if not is_all_array_1d(time_vec, gamma):
         raise ValueError("Input arrays must be one-dimensional!")
+    if time_vec.size != gamma.size:
+        raise ValueError("Input arrays must have the same length!")
 
     dt = np.mean(np.diff(time_vec))
     omega = np.fft.fftshift(np.fft.fftfreq(time_vec.size, dt)) * 2 * PI
@@ -158,7 +169,9 @@ def sqw_ga_model[T: np.floating, U: np.complexfloating](
     gamma_tuple = tuple(gamma)
     omega_tuple = tuple(omega)
 
-    result = _sqw_ga_model(q, gamma_tuple, omega_tuple, dt, dw, logger=logger)
+    result = _sqw_ga_model(
+        q, gamma_tuple, omega_tuple, dt, dw, assure_detailed_balance=assure_detailed_balance, logger=logger
+    )
 
     if logger:
         logger(f"S(q,w) calculation for {q = :.2f} all completed!")
@@ -166,10 +179,16 @@ def sqw_ga_model[T: np.floating, U: np.complexfloating](
     return result
 
 
-def _sqw_qc(q: float, time_vec: Array1D, gamma_qtm: Array1D, gamma_cls: Array1D, logger: Callable[[str], None] | None):
-    dt = np.mean(np.diff(time_vec))
-    omega = np.fft.fftshift(np.fft.fftfreq(time_vec.size, dt)) * 2 * PI
-    dw = np.mean(np.diff(omega))
+def _sqw_qc(
+    q: float,
+    time_vec: Array1D[np.floating],
+    gamma_qtm: Array1D[np.complexfloating],
+    gamma_cls: Array1D[np.floating],
+    logger: Callable[[str], None] | None,
+) -> tuple[Array1D[np.floating], Array1D[np.complex128]]:
+    dt: float = np.diff(time_vec).mean()
+    omega: Array1D[np.floating] = np.fft.fftshift(np.fft.fftfreq(time_vec.size, dt)) * 2 * PI
+    dw: float = np.diff(omega).mean()
 
     gamma_tuple = tuple(gamma_qtm - gamma_cls)
     omega_tuple = tuple(omega)
@@ -178,8 +197,13 @@ def _sqw_qc(q: float, time_vec: Array1D, gamma_qtm: Array1D, gamma_cls: Array1D,
 
 
 def sqw_quantum_correction_factor(
-    q: float, time_vec: Array1D, gamma_qtm: Array1D, gamma_cls: Array1D, *, logger: Callable[[str], None] | None = print
-):
+    q: float,
+    time_vec: Array1D[np.floating],
+    gamma_qtm: Array1D[np.complexfloating],
+    gamma_cls: Array1D[np.floating],
+    *,
+    logger: Callable[[str], None] | None = print,
+) -> tuple[Array1D[np.floating], Array1D[np.complex128]]:
     if not is_all_array_1d(time_vec, gamma_qtm, gamma_cls):
         raise ValueError("Input arrays must be one-dimensional!")
     if not (q > 0):
@@ -190,14 +214,14 @@ def sqw_quantum_correction_factor(
 
 def sqw_gaaqc_model(
     q: float,
-    time_vec: Array1D,
-    gamma_qtm: Array1D,
-    gamma_cls: Array1D,
-    omega_md: Array1D,
-    sqw_md: Array1D,
+    time_vec: Array1D[np.floating],
+    gamma_qtm: Array1D[np.complexfloating],
+    gamma_cls: Array1D[np.floating],
+    omega_md: Array1D[np.floating],
+    sqw_md: Array1D[np.floating],
     *,
     logger: Callable[[str], None] | None = print,
-):
+) -> tuple[Array1D[np.floating], Array1D[np.complex128]]:
     if not is_all_array_1d(time_vec, gamma_qtm, gamma_cls, omega_md, sqw_md):
         raise ValueError("Input arrays must be one-dimensional!")
     if not (q > 0):
@@ -205,13 +229,30 @@ def sqw_gaaqc_model(
 
     omega_qc, sqw_qc = _sqw_qc(q, time_vec, gamma_qtm, gamma_cls, logger)
 
-    dw_qc = np.mean(np.diff(omega_qc))
-    dw_md = np.mean(np.diff(omega_md))
+    dw_qc: float = np.diff(omega_qc).mean()
+    dw_md: float = np.diff(omega_md).mean()
 
     if not np.isclose(dw_qc, dw_md, atol=0):
         n_points = int(np.round((omega_qc[-1] - omega_qc[0]) / dw_md)) + 1
         omega_qc_interped = np.linspace(omega_qc[0], omega_qc[-1], n_points)
-        sqw_qc = _interp_sqw_qc(omega_qc_interped, omega_qc, sqw_qc)
+        sqw_qc = interpolate_complex_function(omega_qc, omega_qc_interped, sqw_qc)
         omega_qc = omega_qc_interped
 
-    return linear_convolve_x_axis(omega_qc, omega_md), linear_convolve(sqw_qc, sqw_md, dw_md)  # type: ignore
+    return linear_convolve_x_axis(omega_qc, omega_md), linear_convolve(sqw_qc, sqw_md, dw_md)
+
+
+def is_detailed_balance(omega: Array1D[np.floating], sqw: Array1D[np.complexfloating], temperature: float) -> bool:
+    if not is_all_array_1d(omega, sqw):
+        raise ValueError("Input arrays must be one-dimensional!")
+    if omega.size != sqw.size:
+        raise ValueError("Input arrays must have the same length!")
+
+    neg_indices = omega < 0
+    pos_indices = omega >= 0
+    for indices in (neg_indices, pos_indices):
+        o = omega[indices]
+        s = sqw[indices]
+        s_ = interpolate_complex_function(-o, omega, sqw) * np.exp(HBAR * -o / (KB * temperature))
+        if not np.allclose(s_, s, atol=0):
+            return False
+    return True
