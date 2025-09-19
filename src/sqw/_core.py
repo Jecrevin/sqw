@@ -118,6 +118,33 @@ def sqw_ga_model[T: np.floating, U: np.complexfloating](
     *,
     logger: Callable[[str], None] | None = print,
 ) -> tuple[Array1D[np.floating], Array1D[np.complex128]]:
+    """Calculate S(q,w) using Gaussian Approximation (GA) model.
+
+    Parameters
+    ----------
+    q : float
+        Momentum transfer (in Å⁻¹), must be greater than 0.
+    time_vec : Array1D[T]
+        Time sequence, must be one-dimensional.
+    gamma : Array1D[U]
+        Width function :math:`\\Gamma(t)`, must be one-dimensional.
+    logger : Callable[[str], None] | None, optional
+        Logger function to log the progress, by default print to console.
+
+    Returns
+    -------
+    tuple[Array1D[np.floating], Array1D[np.complex128]]
+        A tuple containing:
+        - omega: Frequency sequence.
+        - S(q,w): Scattering function values (complex).
+
+    Raises
+    ------
+    ValueError
+        - If `q` is not greater than 0 or if input arrays are not one-dimensional.
+        - If `time_vec` and `gamma` are not all one-dimensional.
+        - If `time_vec` and `gamma` have different lengths.
+    """
     if not (q > 0):
         raise ValueError("Momentum transfer `q` must be greater than 0!")
     if not is_all_array_1d(time_vec, gamma):
