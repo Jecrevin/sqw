@@ -88,10 +88,6 @@ def _sqw_ga_model[T: np.inexact, U: np.floating](
     if q <= 5:  # direct calculation for small q
         sisf = np.exp(-0.5 * q**2 * gamma)  # Self-Intermediate Scattering Function
         sqw_raw = continuous_fourier_transform(sisf, 1 / dt) / (2 * PI)
-
-        if not assure_detailed_balance and logger:
-            logger("Warning: Detailed balance is not assured!")
-
         sqw = assure_detailed_balance(omega, sqw_raw) if assure_detailed_balance else sqw_raw
 
         if logger:
@@ -104,14 +100,15 @@ def _sqw_ga_model[T: np.inexact, U: np.floating](
 
     # recursive calculation for larger q
     x_recur, y_recur = _sqw_ga_model(
-        recur_q, gamma_tuple, omega_tuple, dt, dw, assure_detailed_balance=assure_detailed_balance, logger=recur_logger
+        recur_q, gamma_tuple, omega_tuple, dt, dw, assure_detailed_balance=None, logger=recur_logger
     )
 
     # trim the value at front and end which nearly zero to speed up the convolution
     x_recur_trimed, y_recur_trimed = trim_function(x_recur, y_recur, cut_ratio=1e-9)
 
     res_omega = self_linear_convolve_x_axis(x_recur_trimed)
-    res_sqw = self_linear_convolve(y_recur_trimed, dw)
+    res_sqw_raw = self_linear_convolve(y_recur_trimed, dw)
+    res_sqw = assure_detailed_balance(res_omega, res_sqw_raw) if assure_detailed_balance else res_sqw_raw
 
     if logger:
         logger(f"Done calculation for {q = :.2f}.")
@@ -168,6 +165,9 @@ def sqw_ga_model[T: np.floating, U: np.inexact](
     # Convert to tuple to make `gamma` & `omega` hashable for caching
     gamma_tuple = tuple(gamma)
     omega_tuple = tuple(omega)
+
+    if not assure_detailed_balance and logger:
+        logger("Warning: Detailed balance is not assured!")
 
     result = _sqw_ga_model(
         q, gamma_tuple, omega_tuple, dt, dw, assure_detailed_balance=assure_detailed_balance, logger=logger
