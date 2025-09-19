@@ -20,6 +20,7 @@ build-backend = "uv_build"
 dev = [
     "coverage>=7.10.4",
     "ruff>=0.12.9",
+    "sphinx>=8.2.3",
 ]
 script = [
     "h5py>=3.14.0",
