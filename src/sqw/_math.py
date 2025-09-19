@@ -1,10 +1,10 @@
-from typing import Any
+from typing import Any, overload
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.signal import fftconvolve
 
-from .typing import Array1D
+from ._typing import Array1D
 
 
 def is_all_array_1d(*arrays: NDArray[Any]) -> bool:
@@ -35,19 +35,7 @@ def is_all_array_1d(*arrays: NDArray[Any]) -> bool:
     return all(arr.ndim == 1 for arr in arrays)
 
 
-def _check_array_linspace(arr: Array1D[Any]) -> bool:
-    if arr.size <= 2:
-        return True
-
-    diff = np.diff(arr)
-
-    if np.issubdtype(arr.dtype, np.integer):
-        return bool(np.all(diff == diff[0]))
-    else:
-        return np.allclose(diff, diff[0], atol=0)
-
-
-def is_linspace[T: np.number](arr: Array1D[T]) -> bool:
+def is_array_linspace[T: np.number](arr: Array1D[T]) -> bool:
     """Check if a 1D array is linearly spaced.
 
     Parameters
@@ -79,10 +67,15 @@ def is_linspace[T: np.number](arr: Array1D[T]) -> bool:
     >>> is_linspace(c)
     True
     """
-    if arr.ndim != 1:
-        raise ValueError("Input array must be one-dimensional!")
+    if arr.size <= 2:
+        return True
 
-    return _check_array_linspace(arr)
+    diff = np.diff(arr)
+
+    if np.issubdtype(arr.dtype, np.integer):
+        return all(diff == diff[0])
+    else:
+        return np.allclose(diff, diff[0], atol=0)
 
 
 def is_all_array_linspace(*arrays: Array1D[Any]) -> bool:
@@ -115,21 +108,26 @@ def is_all_array_linspace(*arrays: Array1D[Any]) -> bool:
     >>> is_all_array_linspace(a, c)
     False
     """
-    if not is_all_array_1d(*arrays):
-        raise ValueError("Input arrays must be one-dimensional!")
-
-    return all(_check_array_linspace(arr) for arr in arrays)
+    return all(is_array_linspace(arr) for arr in arrays)
 
 
-def _do_linear_convolve[T: np.number, U: np.number](
-    fx: Array1D[T], gx: Array1D[U], dx: float | int | np.number
-) -> Array1D[np.number]:
-    return fftconvolve(fx, gx, mode="full") * dx
-
-
-def linear_convolve[T: np.number, U: np.number](
-    fx: Array1D[T], gx: Array1D[U], dx: float | int | np.number
-) -> Array1D[np.number]:
+@overload
+def linear_convolve[FloatType1: np.floating, FloatType2: np.floating](
+    fx: Array1D[FloatType1], gx: Array1D[FloatType2], dx: float
+) -> Array1D[FloatType1 | FloatType2 | np.float64]: ...
+@overload
+def linear_convolve[ComplexType: np.complexfloating, FloatType: np.floating](
+    fx: Array1D[ComplexType], gx: Array1D[FloatType], dx: float
+) -> Array1D[ComplexType]: ...
+@overload
+def linear_convolve[FloatType: np.floating, ComplexType: np.complexfloating](
+    fx: Array1D[FloatType], gx: Array1D[ComplexType], dx: float
+) -> Array1D[ComplexType]: ...
+@overload
+def linear_convolve[ComplexType1: np.complexfloating, ComplexType2: np.complexfloating](
+    fx: Array1D[ComplexType1], gx: Array1D[ComplexType2], dx: float
+) -> Array1D[ComplexType1 | ComplexType2]: ...
+def linear_convolve(fx, gx, dx):
     """Calculate the linear convolution of two 1D signals.
 
     This uses `scipy.signal.fftconvolve` for fast computation.
@@ -169,13 +167,18 @@ def linear_convolve[T: np.number, U: np.number](
     >>> linear_convolve(fx, gx, dx)
     array([0.4, 1.3, 2.2, 1.5])
     """
-    if not is_all_array_1d(fx, gx):
-        raise ValueError("Input arrays must be one-dimensional!")
-
-    return _do_linear_convolve(fx, gx, dx)
+    return fftconvolve(fx, gx, mode="full") * dx
 
 
-def self_linear_convolve[T: np.number](fx: Array1D[T], dx: float | int | np.number) -> Array1D[np.number]:
+@overload
+def self_linear_convolve[FloatType: np.floating](
+    fx: Array1D[FloatType], dx: float
+) -> Array1D[FloatType | np.float64]: ...
+@overload
+def self_linear_convolve[ComplexType: np.complexfloating](
+    fx: Array1D[ComplexType], dx: float
+) -> Array1D[ComplexType]: ...
+def self_linear_convolve(fx, dx):
     """Calculate the self-convolution of a 1D signal.
 
     Parameters
@@ -204,17 +207,10 @@ def self_linear_convolve[T: np.number](fx: Array1D[T], dx: float | int | np.numb
     >>> self_linear_convolve(fx, dx)
     array([1., 4., 10., 12., 9.])
     """
-    if not is_all_array_1d(fx):
-        raise ValueError("Input array must be one-dimensional!")
-
-    return _do_linear_convolve(fx, fx, dx)
+    return linear_convolve(fx, fx, dx)
 
 
-def _get_linear_convolve_x_axis[T: np.number, U: np.number](x1: Array1D[T], x2: Array1D[U]) -> Array1D[T | U]:
-    return np.linspace(x1[0] + x2[0], x1[-1] + x2[-1], x1.size + x2.size - 1)
-
-
-def linear_convolve_x_axis[T: np.number, U: np.number](x1: Array1D[T], x2: Array1D[U]) -> Array1D[T | U]:
+def linear_convolve_x_axis[T: np.inexact, U: np.inexact](x1: Array1D[T], x2: Array1D[U]) -> Array1D[T | U]:
     """Calculate the x-axis for the convolution of two signals.
 
     The signals are assumed to be sampled on linearly spaced grids.
@@ -246,17 +242,10 @@ def linear_convolve_x_axis[T: np.number, U: np.number](x1: Array1D[T], x2: Array
     >>> linear_convolve_x_axis(x1, x2)
     array([0., 0.5, 1., 1.5])
     """
-    if not is_all_array_1d(x1, x2):
-        raise ValueError("Input arrays must be one-dimensional!")
-    if not is_all_array_linspace(x1, x2):
-        raise ValueError("Input arrays must be linear spaced!")
-    if not np.isclose(x1[1] - x1[0], x2[1] - x2[0], atol=0):
-        raise ValueError("Input arrays must have the same step size!")
-
-    return _get_linear_convolve_x_axis(x1, x2)
+    return np.linspace(x1[0] + x2[0], x1[-1] + x2[-1], x1.size + x2.size - 1)
 
 
-def self_linear_convolve_x_axis[T: np.number](x: Array1D[T]) -> Array1D[T]:
+def self_linear_convolve_x_axis[T: np.inexact](x: Array1D[T]) -> Array1D[T]:
     """Calculate the x-axis for the self-convolution of a signal.
 
     Parameters
@@ -282,17 +271,10 @@ def self_linear_convolve_x_axis[T: np.number](x: Array1D[T]) -> Array1D[T]:
     >>> self_linear_convolve_x_axis(x)
     array([0.  , 0.25, 0.5 , 0.75, 1.  , 1.25, 1.5 , 1.75, 2.  ])
     """
-    if not is_all_array_1d(x):
-        raise ValueError("Input array must be one-dimensional!")
-    if not is_all_array_linspace(x):
-        raise ValueError("Input array must be linear spaced!")
-
-    return _get_linear_convolve_x_axis(x, x)
+    return linear_convolve_x_axis(x, x)
 
 
-def continuous_fourier_transform[T: np.number](
-    signal: Array1D[T], sampling_rate: float | int | np.number
-) -> Array1D[np.complex128]:
+def continuous_fourier_transform[T: np.inexact](signal: Array1D[T], sampling_rate: float) -> Array1D[np.complex128]:
     """Compute the continuous-like Fourier Transform of a 1D signal.
 
     This function uses `numpy.fft.fft` and scales the result to approximate
@@ -332,23 +314,16 @@ def continuous_fourier_transform[T: np.number](
     >>> np.round(ft_signal[45], 2)
     0.5j
     """
-    if signal.ndim != 1:
-        raise ValueError("Input signal must be one-dimensional.")
-
     return np.fft.fftshift(np.fft.fft(signal)) / sampling_rate
 
 
-def trim_function[T: np.number, U: np.number](
+def trim_function[T: np.inexact, U: np.inexact](
     x: Array1D[T], y: Array1D[U], cut_ratio: float
 ) -> tuple[Array1D[T], Array1D[U]]:
-    if not is_all_array_1d(x, y):
-        raise ValueError("Input arrays must be all one-dimentional!")
-    if not (0 < cut_ratio < 1):
-        raise ValueError("`cut_ratio` must be between 0 and 1!")
-
     y_abs = np.abs(y)
     threshold = np.max(y_abs) * cut_ratio
 
     significant_indices = np.nonzero(y_abs > threshold)[0]
     start, end = significant_indices[0], significant_indices[-1] + 1
+
     return x[start:end], y[start:end]

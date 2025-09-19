@@ -13,8 +13,9 @@ from helper import (
 )
 from matplotlib import pyplot as plt
 
-from h2o_sqw_calc.core import HBAR, sqw_cdft, sqw_gaaqc
-from h2o_sqw_calc.typing import Array1D
+from sqw import sqw_ga_model, sqw_gaaqc_model
+from sqw._core import HBAR
+from sqw._typing import Array1D
 
 
 def main() -> None:
@@ -58,14 +59,16 @@ def main() -> None:
     sqw_md_vstack = sqw_md_vstack[INDICES]
 
     sqw_gaaqc_results = map(
-        lambda q, sqw_md: sqw_gaaqc(q, time_vec, gamma_qtm, gamma_cls, omega_md, sqw_md), q_vals, sqw_md_vstack
+        lambda q, sqw_md: sqw_gaaqc_model(q, time_vec, gamma_qtm, gamma_cls, omega_md, sqw_md), q_vals, sqw_md_vstack
     )
 
     print("Calculation completed.")
     if PLOT_QTM_RESULTS:
         print("Calculating S(q,w) QTM results from CDFT for comparison...")
 
-    sqw_qtm_results = map(partial(sqw_cdft, time_vec=time_vec, gamma=gamma_qtm), q_vals) if PLOT_QTM_RESULTS else None
+    sqw_qtm_results = (
+        map(partial(sqw_ga_model, time_vec=time_vec, gamma=gamma_qtm), q_vals) if PLOT_QTM_RESULTS else None
+    )
 
     if PLOT_QTM_RESULTS:
         print("Calculation completed.")

@@ -9,8 +9,9 @@ from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
 from scipy.interpolate import CubicSpline
 
-from h2o_sqw_calc.core import HBAR, NEUTRON_MASS, sqw_cdft
-from h2o_sqw_calc.typing import Array1D
+from sqw import sqw_ga_model
+from sqw._core import HBAR, NEUTRON_MASS
+from sqw._typing import Array1D
 
 
 def main():
@@ -48,7 +49,7 @@ def main():
     print("Gamma data loaded successfully.")
     print("Calculating CDFT S(q,w) values...")
 
-    sqw_results = map(partial(sqw_cdft, time_vec=time, gamma=gamma), Q_VALUES)
+    sqw_results = map(partial(sqw_ga_model, time_vec=time, gamma=gamma), Q_VALUES)
 
     omega = np.linspace(-10 / HBAR, 4 / HBAR, NSAMPLES)
 

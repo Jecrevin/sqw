@@ -13,8 +13,9 @@ from helper import (
 )
 from matplotlib import pyplot as plt
 
-from h2o_sqw_calc.core import HBAR, sqw_cdft, sqw_stc_model
-from h2o_sqw_calc.typing import Array1D
+from sqw import sqw_ga_model, sqw_stc_model
+from sqw._core import HBAR
+from sqw._typing import Array1D
 
 
 def main():
@@ -45,7 +46,7 @@ def main():
     print("Calculating S(q,w) using CDFT...")
 
     omega_vals, sqw_cdft_results = zip(
-        *map(partial(sqw_cdft, time_vec=time_vec, gamma=gamma_qtm), Q_VALUES), strict=True
+        *map(partial(sqw_ga_model, time_vec=time_vec, gamma=gamma_qtm), Q_VALUES), strict=True
     )
 
     print("CDFT calculation complete.")

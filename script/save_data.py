@@ -8,7 +8,8 @@ import numpy as np
 from helper import get_gamma_data, get_sqw_molecular_dynamics_data
 from scipy.interpolate import CubicSpline
 
-from h2o_sqw_calc.core import HBAR, sqw_cdft, sqw_gaaqc
+from sqw import sqw_ga_model, sqw_gaaqc_model
+from sqw._core import HBAR
 
 
 def main() -> None:
@@ -41,9 +42,9 @@ def main() -> None:
     print("MD simulation S(q,w) data loaded successfully.")
     print("Calculating S(q,w) QTM, S(q,w) GAAQC...")
 
-    results_qtm = map(partial(sqw_cdft, time_vec=time_vec, gamma=gamma_qtm), q_vals)
+    results_qtm = map(partial(sqw_ga_model, time_vec=time_vec, gamma=gamma_qtm), q_vals)
     results_gaaqc = map(
-        lambda q, sqw_md: sqw_gaaqc(q, time_vec, gamma_qtm, gamma_cls, omega_md, sqw_md),
+        lambda q, sqw_md: sqw_gaaqc_model(q, time_vec, gamma_qtm, gamma_cls, omega_md, sqw_md),
         q_vals,
         sqw_md_stack,
     )

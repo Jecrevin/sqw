@@ -7,7 +7,7 @@ import scipy.constants as consts
 from scipy.constants import pi as PI
 from scipy.interpolate import CubicSpline
 
-from .math import (
+from ._math import (
     continuous_fourier_transform,
     is_all_array_1d,
     linear_convolve,
@@ -16,7 +16,7 @@ from .math import (
     self_linear_convolve_x_axis,
     trim_function,
 )
-from .typing import Array1D
+from ._typing import Array1D
 
 HBAR: Final[float] = consts.value("reduced Planck constant in eV s")  # unit: eV·s
 KB: Final[float] = consts.value("Boltzmann constant in eV/K")  # unit: eV/K
@@ -25,14 +25,14 @@ NEUTRON_MASS: Final[float] = (
 )  # unit: eV/(Å/s)^2
 
 
-def sqw_stc_model(
+def sqw_stc_model[T: np.floating](
     q: float,
-    w: Array1D,
-    freq_dos: Array1D,
-    density_of_states: Array1D,
+    w: Array1D[T],
+    freq_dos: Array1D[np.floating],
+    density_of_states: Array1D[np.floating],
     temperature: float,
     mass_num: int = 1,
-) -> Array1D[np.float64]:
+) -> Array1D[T]:
     """
     Calculate Scattering function S(q,w) using Short Time Collision Approximation (STC) model.
     """
@@ -68,16 +68,15 @@ def sqw_stc_model(
 
 
 @lru_cache
-def _sqw_cdft_recursive[T: np.complexfloating, U: np.floating](
+def _sqw_ga_model[T: np.inexact, U: np.floating](
     q: float,
     gamma_tuple: tuple[T, ...],
     omega_tuple: tuple[U, ...],
     dt: float,
     dw: float,
     *,
-    qtm_correction: bool,
     logger: Callable[[str], None] | None,
-) -> tuple[Array1D[np.floating], Array1D[np.complex128]]:
+) -> tuple[Array1D[U], Array1D[np.complex128]]:
     """Helper function to calculate S(q,w) using CDFT with logging."""
     gamma: Array1D[T] = np.array(gamma_tuple)
     omega: Array1D[U] = np.array(omega_tuple)
@@ -85,36 +84,26 @@ def _sqw_cdft_recursive[T: np.complexfloating, U: np.floating](
     if logger:
         logger(f"Calculating CDFT recursively for {q = :.2f} ...")
 
-    if q <= 5:
-        sisf = np.exp(-0.5 * q**2 * gamma)
-        signal = (np.abs(sisf) - np.abs(sisf).min()) * np.exp(1j * np.angle(sisf)) if qtm_correction else sisf
-        sqw = continuous_fourier_transform(signal, 1 / dt) / (2 * PI)
-        if qtm_correction:
-            sqw /= np.sqrt(np.trapezoid(np.abs(sqw) ** 2, omega))
+    if q <= 5:  # direct calculation for small q
+        sisf = np.exp(-0.5 * q**2 * gamma)  # Self-Intermediate Scattering Function
+        sqw = continuous_fourier_transform(sisf, 1 / dt) / (2 * PI)
 
         if logger:
             logger(f"Done calculation for {q = :.2f}.")
 
         return omega, sqw
 
-    recur_q = round(q / np.sqrt(2), 8)
-    x_recur, y_recur = trim_function(
-        *_sqw_cdft_recursive(
-            recur_q,
-            gamma_tuple,
-            omega_tuple,
-            dt,
-            dw,
-            qtm_correction=qtm_correction,
-            logger=lambda s: logger("=> " + s) if logger else None,
-        ),
-        cut_ratio=1e-9,
-    )
+    recur_q = round(q / np.sqrt(2), 8)  # round q to avoid floating point issue for caching
+    recur_logger = (lambda s: logger("=> " + s)) if logger else None
 
-    res_omega = self_linear_convolve_x_axis(x_recur)
-    res_sqw = self_linear_convolve(y_recur, dw).astype(np.complex128)
-    if qtm_correction:
-        res_sqw /= np.sqrt(np.trapezoid(np.abs(res_sqw) ** 2, res_omega))
+    # recursive calculation for larger q
+    x_recur, y_recur = _sqw_ga_model(recur_q, gamma_tuple, omega_tuple, dt, dw, logger=recur_logger)
+
+    # trim the value at front and end which nearly zero to speed up the convolution
+    x_recur_trimed, y_recur_trimed = trim_function(x_recur, y_recur, cut_ratio=1e-9)
+
+    res_omega = self_linear_convolve_x_axis(x_recur_trimed)
+    res_sqw = self_linear_convolve(y_recur_trimed, dw)
 
     if logger:
         logger(f"Done calculation for {q = :.2f}.")
@@ -122,7 +111,7 @@ def _sqw_cdft_recursive[T: np.complexfloating, U: np.floating](
     return res_omega, res_sqw
 
 
-def sqw_cdft[T: np.floating, U: np.complexfloating](
+def sqw_ga_model[T: np.floating, U: np.complexfloating](
     q: float,
     time_vec: Array1D[T],
     gamma: Array1D[U],
@@ -138,10 +127,11 @@ def sqw_cdft[T: np.floating, U: np.complexfloating](
     omega = np.fft.fftshift(np.fft.fftfreq(time_vec.size, dt)) * 2 * PI
     dw = np.mean(np.diff(omega))
 
+    # Convert to tuple to make `gamma` & `omega` hashable for caching
     gamma_tuple = tuple(gamma)
     omega_tuple = tuple(omega)
 
-    result = _sqw_cdft_recursive(q, gamma_tuple, omega_tuple, dt, dw, qtm_correction=False, logger=logger)
+    result = _sqw_ga_model(q, gamma_tuple, omega_tuple, dt, dw, logger=logger)
 
     if logger:
         logger(f"S(q,w) calculation for {q = :.2f} all completed!")
@@ -149,9 +139,7 @@ def sqw_cdft[T: np.floating, U: np.complexfloating](
     return result
 
 
-def _get_sqw_qc(
-    q: float, time_vec: Array1D, gamma_qtm: Array1D, gamma_cls: Array1D, logger: Callable[[str], None] | None
-):
+def _sqw_qc(q: float, time_vec: Array1D, gamma_qtm: Array1D, gamma_cls: Array1D, logger: Callable[[str], None] | None):
     dt = np.mean(np.diff(time_vec))
     omega = np.fft.fftshift(np.fft.fftfreq(time_vec.size, dt)) * 2 * PI
     dw = np.mean(np.diff(omega))
@@ -159,10 +147,10 @@ def _get_sqw_qc(
     gamma_tuple = tuple(gamma_qtm - gamma_cls)
     omega_tuple = tuple(omega)
 
-    return _sqw_cdft_recursive(q, gamma_tuple, omega_tuple, dt, dw, qtm_correction=True, logger=logger)
+    return _sqw_ga_model(q, gamma_tuple, omega_tuple, dt, dw, logger=logger)
 
 
-def sqw_qtm_correction_factor(
+def sqw_quantum_correction_factor(
     q: float, time_vec: Array1D, gamma_qtm: Array1D, gamma_cls: Array1D, *, logger: Callable[[str], None] | None = print
 ):
     if not is_all_array_1d(time_vec, gamma_qtm, gamma_cls):
@@ -170,7 +158,7 @@ def sqw_qtm_correction_factor(
     if not (q > 0):
         raise ValueError("Momentum transfer `q` must be greater than 0!")
 
-    return _get_sqw_qc(q, time_vec, gamma_qtm, gamma_cls, logger)
+    return _sqw_qc(q, time_vec, gamma_qtm, gamma_cls, logger=logger)
 
 
 def _interp_sqw_qc(omega, omega_qc, sqw_qc):
@@ -180,7 +168,7 @@ def _interp_sqw_qc(omega, omega_qc, sqw_qc):
     return sqw_norm_interped * np.exp(1j * sqw_phase_interped)
 
 
-def sqw_gaaqc(
+def sqw_gaaqc_model(
     q: float,
     time_vec: Array1D,
     gamma_qtm: Array1D,
@@ -195,7 +183,7 @@ def sqw_gaaqc(
     if not (q > 0):
         raise ValueError("Momentum transfer `q` must be greater than 0!")
 
-    omega_qc, sqw_qc = _get_sqw_qc(q, time_vec, gamma_qtm, gamma_cls, logger)
+    omega_qc, sqw_qc = _sqw_qc(q, time_vec, gamma_qtm, gamma_cls, logger)
 
     dw_qc = np.mean(np.diff(omega_qc))
     dw_md = np.mean(np.diff(omega_md))

@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from helper import get_gamma_data, parse_q_values, reorder_legend_by_row, save_or_show_plot
 
-from h2o_sqw_calc.core import HBAR
-from h2o_sqw_calc.typing import Array1D
+from sqw._core import HBAR
+from sqw._typing import Array1D
 
 
 def main():

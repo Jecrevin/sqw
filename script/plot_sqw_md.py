@@ -7,8 +7,8 @@ from helper import get_sqw_molecular_dynamics_data, parse_indices, reorder_legen
 from matplotlib import pyplot as plt
 from numpy.typing import NDArray
 
-from h2o_sqw_calc.core import HBAR
-from h2o_sqw_calc.typing import Array1D
+from sqw._core import HBAR
+from sqw._typing import Array1D
 
 
 def main():

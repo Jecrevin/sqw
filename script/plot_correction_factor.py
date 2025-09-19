@@ -8,8 +8,9 @@ import scipy.constants as consts
 from helper import get_gamma_data, parse_q_values, save_or_show_plot
 from matplotlib import pyplot as plt
 
-from h2o_sqw_calc.core import HBAR, sqw_qtm_correction_factor
-from h2o_sqw_calc.typing import Array1D
+from sqw import sqw_quantum_correction_factor
+from sqw._core import HBAR
+from sqw._typing import Array1D
 
 
 def main() -> None:
@@ -45,7 +46,7 @@ def main() -> None:
     print("Calculating correction factors...")
 
     get_qc = (
-        partial(sqw_qtm_correction_factor, time_vec=time_vec, gamma_qtm=gamma_qtm, gamma_cls=gamma_cls)
+        partial(sqw_quantum_correction_factor, time_vec=time_vec, gamma_qtm=gamma_qtm, gamma_cls=gamma_cls)
         if PLOT_SQW
         else lambda q: np.exp(-0.5 * q**2 * (gamma_qtm - gamma_cls))
     )
