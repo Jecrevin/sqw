@@ -8,6 +8,8 @@ from matplotlib import pyplot as plt
 from matplotlib.artist import Artist
 from numpy.typing import NDArray
 
+from sqw._core import HBAR, KB
+from sqw._math import interpolate_complex_function
 from sqw._typing import Array1D
 
 
@@ -121,3 +123,17 @@ def parse_q_values(q_intervals_str: list[str], step: float = 1.0) -> Array1D[np.
 
 def parse_indices(indices: list[str], step: int = 1) -> Array1D[np.int_]:
     return np.array(sorted(set.union(*(_parse_interval(idx, step, int) for idx in indices))))
+
+
+def correct_sqw_by_detailed_balance[T: np.complexfloating](
+    omega: Array1D[np.floating],
+    sqw: Array1D[T],
+    temperature: float,
+) -> Array1D[T | np.complex128]:
+    pos_index = omega >= 0
+    omega_pos = omega[pos_index]
+    sqw_pos_corrected = interpolate_complex_function(-omega_pos, omega, sqw) * np.exp(
+        HBAR * -omega_pos / (KB * temperature)
+    )
+    sqw_corrected = np.concatenate((sqw[~pos_index], sqw_pos_corrected))
+    return sqw_corrected

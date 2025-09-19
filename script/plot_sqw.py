@@ -5,6 +5,7 @@ from typing import Final, Literal
 
 import numpy as np
 from helper import (
+    correct_sqw_by_detailed_balance,
     get_gamma_data,
     get_stc_model_data,
     parse_q_values,
@@ -45,8 +46,18 @@ def main():
     print("Gamma data loaded successfully.")
     print("Calculating S(q,w) using CDFT...")
 
+    correct_sqw = partial(correct_sqw_by_detailed_balance, temperature=TEMPERATURE)
     omega_vals, sqw_cdft_results = zip(
-        *map(partial(sqw_ga_model, time_vec=time_vec, gamma=gamma_qtm), Q_VALUES), strict=True
+        *map(
+            partial(
+                sqw_ga_model,
+                time_vec=time_vec,
+                gamma=gamma_qtm,
+                assure_detailed_balance=correct_sqw,  # type: ignore
+            ),
+            Q_VALUES,
+        ),
+        strict=True,
     )
 
     print("CDFT calculation complete.")

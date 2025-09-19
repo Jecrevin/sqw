@@ -4,7 +4,7 @@ from functools import partial
 from typing import Final, Literal
 
 import numpy as np
-from helper import get_gamma_data, get_stc_model_data, parse_q_values, save_or_show_plot
+from helper import correct_sqw_by_detailed_balance, get_gamma_data, parse_q_values, save_or_show_plot
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
 from scipy.interpolate import CubicSpline
@@ -20,8 +20,8 @@ def main():
     args = parser.parse_args()
 
     GAMMA_FILE_PATH: Final[str] = args.gamma_file_path
-    STC_FILE_PATH: Final[str] = args.stc_file_path
     ELEMENT: Final[Literal["H", "O"]] = args.element
+    TEMPERATURE: Final[float] = args.temperature  # unit: K
     MASS_NUM: Final[int] = args.mass_num
     USE_ENERGY_UNIT: Final[bool] = args.energy_unit
     NSAMPLES: Final[int] = args.nsamples
@@ -31,14 +31,6 @@ def main():
     except ValueError as e:
         parser.error(f"Error parsing q_values: {e}")
 
-    print(f"Loading STC model data from {STC_FILE_PATH}...")
-
-    try:
-        freq_dos, dos = get_stc_model_data(STC_FILE_PATH, ELEMENT)
-    except Exception as e:
-        sys.exit(f"Error occured while reading STC data: {e}")
-
-    print("STC model data loaded successfully.")
     print(f"Loading gamma data for '{ELEMENT}' from {GAMMA_FILE_PATH}...")
 
     try:
@@ -49,7 +41,16 @@ def main():
     print("Gamma data loaded successfully.")
     print("Calculating CDFT S(q,w) values...")
 
-    sqw_results = map(partial(sqw_ga_model, time_vec=time, gamma=gamma), Q_VALUES)
+    correct_sqw = partial(correct_sqw_by_detailed_balance, temperature=TEMPERATURE)
+    sqw_results = map(
+        partial(
+            sqw_ga_model,
+            time_vec=time,
+            gamma=gamma,
+            assure_detailed_balance=correct_sqw,  # type: ignore
+        ),
+        Q_VALUES,
+    )
 
     omega = np.linspace(-10 / HBAR, 4 / HBAR, NSAMPLES)
 
@@ -102,11 +103,6 @@ def setup_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("gamma_file_path", type=str, help="File path to the HDF5 file containing the gamma data.")
     parser.add_argument(
-        "stc_file_path",
-        type=str,
-        help="File path to the HDF5 file containing the STC model data.",
-    )
-    parser.add_argument(
         "q_values",
         type=str,
         help="The range of Momentum Transfer values (in Angstrom^-1) to plot, formatted in [START:END[:STEP]]",
@@ -118,6 +114,12 @@ def setup_parser() -> argparse.ArgumentParser:
         choices=["H", "O"],
         default="H",
         help="Element symbol for which to plot the S(q,w) function (default: H).",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=293.0,
+        help="Temperature in Kelvin (default: 293 K).",
     )
     parser.add_argument(
         "--mass-num",
