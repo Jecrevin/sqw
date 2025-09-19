@@ -1,0 +1,2 @@
+This file is copied alone with other files through COPY command in
+Dockerfile, in case where the file doesn't exist to prevent from failing.

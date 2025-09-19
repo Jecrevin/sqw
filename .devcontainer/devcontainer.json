@@ -7,7 +7,12 @@
 	"build": {
 		"dockerfile": "Dockerfile",
 		// Use 'context' to specify the build context. More info: https://aka.ms/devcontainers-dockerfile-context.
-		"context": ".."
+		"context": "..",
+		// Update 'args' values as needed. More info: https://aka.ms/devcontainers-docker-args.
+		"args": {
+			"APT_SOURCES_FILENAME": "debian.sources",
+			"PIP_INDEX_URL": "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
+		}
 	},
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
@@ -15,14 +20,14 @@
 		"ghcr.io/devcontainers/features/common-utils": {
 			"configureZshAsDefaultShell": true
 		},
-		"ghcr.io/devcontainers/features/desktop-lite:1": {},
+		"ghcr.io/devcontainers/features/desktop-lite:1": { },
 		"ghcr.io/devcontainers/features/python:1": {
 			"toolsToInstall": [ "uv" ]
 		}
 	},
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	"forwardPorts": [6080],
+	"forwardPorts": [ 6080 ],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
 	"postCreateCommand": "bash .devcontainer/setup.sh",
