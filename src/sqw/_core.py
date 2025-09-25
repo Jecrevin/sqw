@@ -1,9 +1,7 @@
 from collections.abc import Callable
 from functools import lru_cache
-from typing import Final
 
 import numpy as np
-import scipy.constants as consts
 from scipy.constants import pi as PI
 
 from ._math import (
@@ -16,13 +14,8 @@ from ._math import (
     self_linear_convolve_x_axis,
     trim_function,
 )
-from ._typing import Array1D
-
-HBAR: Final[float] = consts.value("reduced Planck constant in eV s")  # unit: eV·s
-KB: Final[float] = consts.value("Boltzmann constant in eV/K")  # unit: eV/K
-NEUTRON_MASS: Final[float] = (
-    consts.value(key="neutron mass energy equivalent in MeV") * consts.mega / (consts.c / consts.angstrom) ** 2
-)  # unit: eV/(Å/s)^2
+from .consts import HBAR, KB, NEUTRON_MASS
+from .typing import Array1D
 
 
 def sqw_stc_model[T: np.floating](
