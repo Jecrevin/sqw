@@ -5,7 +5,7 @@ from numpy.typing import NDArray
 from scipy.fft import fft, fftfreq, fftshift, rfft
 from scipy.signal import fftconvolve
 
-from ._typing import Array1D
+from .typing import Array1D
 
 
 def is_all_array_1d(*arrays: NDArray[Any]) -> bool:
@@ -47,50 +47,39 @@ def self_linear_convolve_x_axis[T: np.floating](x: Array1D[T]) -> Array1D[T]:
     return linear_convolve_x_axis(x, x)
 
 
-def continuous_fourier_transform[T: np.inexact](signal: Array1D[T], sampling_rate: float) -> Array1D[np.complex128]:
-    """Compute the continuous-like Fourier Transform of a 1D signal.
+def continuous_fourier_transform(
+    time: Array1D[np.floating], signal: Array1D[np.inexact]
+) -> tuple[Array1D[np.double], Array1D[np.complexfloating]]:
+    """Compute the continuous Fourier transform of a time-domain signal."""
+    dt = time[1] - time[0]
+    freq = fftshift(fftfreq(time.size, dt)) * 2 * np.pi  # angular frequency
 
-    This function uses `numpy.fft.fft` and scales the result to approximate
-    the continuous Fourier Transform. The zero-frequency component is shifted
-    to the center of the spectrum.
+    if np.iscomplexobj(signal):
+        ft_signal_shifted = fftshift(fft(signal)) * dt
+    else:
+        ft_signal_pos = cast(Array1D[np.complexfloating], rfft(signal))
+        ft_signal_neg = np.conj(ft_signal_pos[-2:0:-1] if signal.size % 2 == 0 else ft_signal_pos[:0:-1])
+        ft_signal_shifted = fftshift(np.concatenate((ft_signal_pos, ft_signal_neg))) * dt
 
-    Parameters
-    ----------
-    signal : Array1D[T]
-        The input 1D signal.
-    sampling_rate : float | int | np.number
-        The sampling rate of the signal (samples per unit of the domain).
+    ft_signal = ft_signal_shifted * np.exp(-1j * freq * time[0])
 
-    Returns
-    -------
-    Array1D[np.complex128]
-        The Fourier-transformed signal.
-
-    Raises
-    ------
-    ValueError
-        If the input signal is not one-dimensional.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from h2o_sqw_calc.math import continuous_fourier_transform
-    >>> sampling_rate = 100  # Hz
-    >>> t = np.arange(0, 1.0, 1 / sampling_rate)
-    >>> signal = np.sin(2 * np.pi * 5 * t)  # 5 Hz sine wave
-    >>> ft_signal = continuous_fourier_transform(signal, sampling_rate)
-    >>> # The peak should be at +/- 5 Hz. The frequency array would be:
-    >>> # freq = np.fft.fftshift(np.fft.fftfreq(len(signal), d=1./sampling_rate))
-    >>> # The magnitude at the peak is expected to be close to 0.5i (for sine).
-    >>> np.round(ft_signal[55], 2)
-    -0.5j
-    >>> np.round(ft_signal[45], 2)
-    0.5j
-    """
-    return np.fft.fftshift(np.fft.fft(signal)) / sampling_rate
+    return freq, ft_signal
 
 
-def trim_function[T: np.inexact, U: np.inexact](
+def linear_interpolate(
+    x: Array1D[np.floating], xp: Array1D[np.floating], fp: Array1D[np.inexact]
+) -> Array1D[np.inexact]:
+    """Perform linear interpolation, supporting complex values."""
+    if np.iscomplexobj(fp):
+        fp_norm = np.abs(fp)
+        fp_phase = np.unwrap(np.angle(fp))
+        fp_interp = np.interp(x, xp, fp_norm) * np.exp(1j * np.interp(x, xp, fp_phase))
+    else:
+        fp_interp = np.interp(x, xp, fp)
+    return fp_interp  # type: ignore
+
+
+def trim_function[T: np.floating, U: np.inexact](
     x: Array1D[T], y: Array1D[U], cut_ratio: float
 ) -> tuple[Array1D[T], Array1D[U]]:
     """Trim the input function (x, y) by removing parts where |y| is below a certain ratio of its maximum value."""
