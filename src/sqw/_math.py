@@ -1,4 +1,4 @@
-from typing import Any, cast, overload
+from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -9,269 +9,41 @@ from ._typing import Array1D
 
 
 def is_all_array_1d(*arrays: NDArray[Any]) -> bool:
-    """Check if all input arrays are one-dimensional.
-
-    Parameters
-    ----------
-    *arrays : NDArray[Any]
-        Variable length argument list of numpy arrays.
-
-    Returns
-    -------
-    bool
-        True if all arrays are 1D, False otherwise.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from h2o_sqw_calc.math import is_all_array_1d
-    >>> a = np.array([1, 2, 3])
-    >>> b = np.array([4, 5, 6])
-    >>> is_all_array_1d(a, b)
-    True
-    >>> c = np.array([[1, 2], [3, 4]])
-    >>> is_all_array_1d(a, c)
-    False
-    """
+    """Check if all input arrays are 1-dimensional."""
     return all(arr.ndim == 1 for arr in arrays)
 
 
-def is_array_linspace[T: np.number](arr: Array1D[T]) -> bool:
-    """Check if a 1D array is linearly spaced.
-
-    Parameters
-    ----------
-    arr : Array1D[T]
-        The input 1D numpy array.
-
-    Returns
-    -------
-    bool
-        True if the array is linearly spaced, False otherwise.
-
-    Raises
-    ------
-    ValueError
-        If the input array is not one-dimensional.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from h2o_sqw_calc.math import is_linspace
-    >>> a = np.array([1, 2, 3, 4])
-    >>> is_linspace(a)
-    True
-    >>> b = np.array([1, 2, 4])
-    >>> is_linspace(b)
-    False
-    >>> c = np.array([1.0, 1.5, 2.0])
-    >>> is_linspace(c)
-    True
-    """
+def is_array_linspace(arr: Array1D[np.number]) -> bool:
+    """Check if the input array is evenly spaced."""
     if arr.size <= 2:
         return True
-
     diff = np.diff(arr)
-
-    if np.issubdtype(arr.dtype, np.integer):
-        return all(diff == diff[0])
-    else:
-        return np.allclose(diff, diff[0], atol=0)
+    return all(diff == diff[0]) if np.issubdtype(arr.dtype, np.integer) else np.allclose(diff, diff[0], atol=0)
 
 
-def is_all_array_linspace(*arrays: Array1D[Any]) -> bool:
-    """Check if all input arrays are linearly spaced.
-
-    Parameters
-    ----------
-    *arrays : Array1D[Any]
-        Variable length argument list of numpy arrays.
-
-    Returns
-    -------
-    bool
-        True if all arrays are linearly spaced, False otherwise.
-
-    Raises
-    ------
-    ValueError
-        If any input array is not one-dimensional.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from h2o_sqw_calc.math import is_all_array_linspace
-    >>> a = np.linspace(0, 1, 5)
-    >>> b = np.arange(5)
-    >>> is_all_array_linspace(a, b)
-    True
-    >>> c = np.array([1, 2, 4])
-    >>> is_all_array_linspace(a, c)
-    False
-    """
+def is_all_array_linspace(*arrays: Array1D[np.number]) -> bool:
+    """Check if all input arrays are evenly spaced."""
     return all(is_array_linspace(arr) for arr in arrays)
 
 
-@overload
-def linear_convolve[FloatType1: np.floating, FloatType2: np.floating](
-    fx: Array1D[FloatType1], gx: Array1D[FloatType2], dx: float
-) -> Array1D[FloatType1 | FloatType2 | np.float64]: ...
-@overload
-def linear_convolve[ComplexType: np.complexfloating, FloatType: np.floating](
-    fx: Array1D[ComplexType], gx: Array1D[FloatType], dx: float
-) -> Array1D[ComplexType]: ...
-@overload
-def linear_convolve[FloatType: np.floating, ComplexType: np.complexfloating](
-    fx: Array1D[FloatType], gx: Array1D[ComplexType], dx: float
-) -> Array1D[ComplexType]: ...
-@overload
-def linear_convolve[ComplexType1: np.complexfloating, ComplexType2: np.complexfloating](
-    fx: Array1D[ComplexType1], gx: Array1D[ComplexType2], dx: float
-) -> Array1D[ComplexType1 | ComplexType2]: ...
-def linear_convolve(fx, gx, dx):
-    """Calculate the linear convolution of two 1D signals.
-
-    This uses `scipy.signal.fftconvolve` for fast computation.
-
-    Parameters
-    ----------
-    fx : Array1D[T]
-        First 1D input array.
-    gx : Array1D[U]
-        Second 1D input array.
-    dx : float | int | np.number
-        The sampling interval of the signals.
-
-    Returns
-    -------
-    Array1D[np.number]
-        The result of the linear convolution.
-
-    Raises
-    ------
-    ValueError
-        If input arrays are not one-dimensional.
-
-    Notes
-    -----
-    Input arrays are assumed to be sampled on commonly spaced grids. The result
-    is scaled by the sampling interval `dx` to approximate the continuous
-    convolution.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from h2o_sqw_calc.math import linear_convolve
-    >>> fx = np.array([1, 2, 3])
-    >>> gx = np.array([4, 5])
-    >>> dx = 0.1
-    >>> linear_convolve(fx, gx, dx)
-    array([0.4, 1.3, 2.2, 1.5])
-    """
+def linear_convolve(fx: Array1D[np.number], gx: Array1D[np.number], dx: float) -> Array1D[np.floating]:
+    """Simulate the linear convolution of two functions sampled on evenly spaced grids."""
     return fftconvolve(fx, gx, mode="full") * dx
 
 
-@overload
-def self_linear_convolve[FloatType: np.floating](
-    fx: Array1D[FloatType], dx: float
-) -> Array1D[FloatType | np.float64]: ...
-@overload
-def self_linear_convolve[ComplexType: np.complexfloating](
-    fx: Array1D[ComplexType], dx: float
-) -> Array1D[ComplexType]: ...
-def self_linear_convolve(fx, dx):
-    """Calculate the self-convolution of a 1D signal.
-
-    Parameters
-    ----------
-    fx : Array1D[T]
-        The 1D input array.
-    dx : float | int | np.number
-        The sampling interval of the signal.
-
-    Returns
-    -------
-    Array1D[np.number]
-        The result of the self-convolution.
-
-    Raises
-    ------
-    ValueError
-        If the input array is not one-dimensional.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from h2o_sqw_calc.math import self_linear_convolve
-    >>> fx = np.array([1, 2, 3])
-    >>> dx = 1.0
-    >>> self_linear_convolve(fx, dx)
-    array([1., 4., 10., 12., 9.])
-    """
+def self_linear_convolve(fx: Array1D[np.number], dx: float) -> Array1D[np.floating]:
+    """Simulate the linear convolution of a function with itself sampled on an evenly spaced grid."""
     return linear_convolve(fx, fx, dx)
 
 
-def linear_convolve_x_axis[T: np.inexact, U: np.inexact](x1: Array1D[T], x2: Array1D[U]) -> Array1D[T | U]:
-    """Calculate the x-axis for the convolution of two signals.
-
-    The signals are assumed to be sampled on linearly spaced grids.
-
-    Parameters
-    ----------
-    x1 : Array1D[T]
-        The x-axis for the first signal.
-    x2 : Array1D[U]
-        The x-axis for the second signal.
-
-    Returns
-    -------
-    Array1D[np.floating]
-        The x-axis for the convolved signal.
-
-    Raises
-    ------
-    ValueError
-        If input arrays are not 1D, not linearly spaced, or have
-        different step sizes.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from h2o_sqw_calc.math import linear_convolve_x_axis
-    >>> x1 = np.linspace(0, 1, 3)  # [0., 0.5, 1.]
-    >>> x2 = np.linspace(0, 0.5, 2)  # [0., 0.5]
-    >>> linear_convolve_x_axis(x1, x2)
-    array([0., 0.5, 1., 1.5])
-    """
+def linear_convolve_x_axis[T: np.floating, U: np.floating](x1: Array1D[T], x2: Array1D[U]) -> Array1D[T | U]:
+    """Calculate the corresponding x-axis of the linear convolution of two functions sampled on evenly spaced grids."""
     return np.linspace(x1[0] + x2[0], x1[-1] + x2[-1], x1.size + x2.size - 1)
 
 
-def self_linear_convolve_x_axis[T: np.inexact](x: Array1D[T]) -> Array1D[T]:
-    """Calculate the x-axis for the self-convolution of a signal.
-
-    Parameters
-    ----------
-    x : Array1D[T]
-        The x-axis for the signal.
-
-    Returns
-    -------
-    Array1D[np.floating]
-        The x-axis for the self-convolved signal.
-
-    Raises
-    ------
-    ValueError
-        If the input array is not 1D or not linearly spaced.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from h2o_sqw_calc.math import self_linear_convolve_x_axis
-    >>> x = np.linspace(0, 1, 5)
-    >>> self_linear_convolve_x_axis(x)
-    array([0.  , 0.25, 0.5 , 0.75, 1.  , 1.25, 1.5 , 1.75, 2.  ])
-    """
+def self_linear_convolve_x_axis[T: np.floating](x: Array1D[T]) -> Array1D[T]:
+    """Calculate the corresponding x-axis of the linear convolution of a
+    function with itself sampled on an evenly spaced grid."""
     return linear_convolve_x_axis(x, x)
 
 
@@ -321,6 +93,7 @@ def continuous_fourier_transform[T: np.inexact](signal: Array1D[T], sampling_rat
 def trim_function[T: np.inexact, U: np.inexact](
     x: Array1D[T], y: Array1D[U], cut_ratio: float
 ) -> tuple[Array1D[T], Array1D[U]]:
+    """Trim the input function (x, y) by removing parts where |y| is below a certain ratio of its maximum value."""
     y_abs = np.abs(y)
     threshold = np.max(y_abs) * cut_ratio
 
