@@ -106,9 +106,9 @@ def _gaussian_approximation_core(
         omega, ft_sisf = continuous_fourier_transform(time, sisf)
         # NOTE: For quantum system, the width function (gamma) is Hermitian
         # thus the SISF is also Hermitian, and the FT result is real.
-        # However, due to numerical errors, the FT result may have a small
-        # imaginary part, so we take the real part to ensure the result is real.
-        raw_sqw = (np.real(ft_sisf) if np.iscomplexobj(sisf) else ft_sisf) / (2 * PI)
+        # For classical system, gamma is real and even, thus SISF is also real and even,
+        # and the FT result is also real.
+        raw_sqw = np.real(ft_sisf) / (2 * PI)
         sqw = correction(omega, raw_sqw) if correction else raw_sqw
 
         return omega, sqw
