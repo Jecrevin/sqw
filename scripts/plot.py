@@ -18,8 +18,8 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from numpy.typing import NDArray
 
 from sqw import sqw_ga_model
-from sqw._core import sqw_stc_model
-from sqw.consts import HBAR, KB, NEUTRON_MASS
+from sqw._core import sqw_gaaqc_model, sqw_stc_model
+from sqw.consts import HBAR, KB, NEUTRON_MASS, PI
 from sqw.typing import Array1D
 
 
@@ -142,9 +142,34 @@ def setup_parser() -> argparse.ArgumentParser:
 
     # sub-command to plot S(q,w) using GAAQC model
     parser_sqw_gaaqc = sqw_subparsers.add_parser(
-        "gaaqc", help="Use GA with quantum correction model to calculate S(q,w)."
+        "gaaqc",
+        parents=[common_parser, common_sqw_parser],
+        help="Use GA with quantum correction model to calculate S(q,w).",
     )
-    # TODO: add arguments for GAAQC model
+    parser_sqw_gaaqc.add_argument(
+        "indices",
+        type=str,
+        nargs="+",
+        help="Indices of momentum transfer Q values in MD data, format: START[:END[:STEP]] or single INDEX.",
+    )
+    parser_sqw_gaaqc.add_argument("gamma_file", type=str, help="HDF5 file containing width function data.")
+    parser_sqw_gaaqc.add_argument(
+        "md_file", type=str, help="HDF5 file containing MD S(q,w) data for quantum correction."
+    )
+    parser_sqw_gaaqc.add_argument(
+        "--with-ga-results",
+        action="store_true",
+        help="Also plot GA results without quantum correction for comparison.",
+    )
+    parser_sqw_gaaqc.add_argument(
+        "--md-keys",
+        type=str,
+        nargs=3,
+        default=["qVec_H", "inc_omega_H", "inc_sqw_H"],
+        metavar=("Q_VALS", "OMEGA", "SQW_STACK"),
+        help="Keys to read datasets used in GAAQC model, ordered as q values, "
+        "frequency and S(q,w) 2D stack (default: ['qVec_H', 'inc_omega_H', 'inc_sqw_H']).",
+    )
     parser_sqw_gaaqc.set_defaults(func=plot_sqw_gaaqc)
 
     return parser
@@ -341,8 +366,65 @@ def plot_sqw_ga2d(args: argparse.Namespace) -> None:
     save_or_show_plot(OUTPUT)
 
 
-# TODO: implement GAAQC model plotting
-def plot_sqw_gaaqc(args: argparse.Namespace) -> None: ...
+def plot_sqw_gaaqc(args: argparse.Namespace) -> None:
+    GAMMA_KEYS: Final[list[str]] = args.gamma_keys
+    MD_KEYS: Final[list[str]] = args.md_keys
+    OUTPUT: Final[str | None] = args.output
+    GAMMA_FILE: Final[str] = args.gamma_file
+    MD_FILE: Final[str] = args.md_file
+    WITH_GA_RESULTS: Final[bool] = args.with_ga_results
+    TEMPERATURE: Final[float] = args.temperature
+    SCALE: Final[str] = args.scale
+    USE_FREQUENCY_AXIS: Final[bool] = args.frequency_axis
+
+    try:
+        INDICES: Final[Array1D[np.intp]] = parse_slices(args.indices)
+    except ValueError as e:
+        sys.exit(f"Error parsing momentum transfer indices: {e}")
+
+    try:
+        time, gamma_qtm, gamma_cls = read_gamma_data(GAMMA_FILE, GAMMA_KEYS, no_extend=False, include_cls=True)
+        assert gamma_cls is not None, "Key param 'include_cls' for `read_gamma_data` must be True!"
+    except Exception as e:
+        sys.exit(f"Error reading width function data: {e}")
+
+    try:
+        q_md, omega_md, raw_sqw_md_stack = read_md_data(MD_FILE, keys=MD_KEYS, no_extend=False)
+        sqw_md_stack = raw_sqw_md_stack * np.sqrt(2 * PI)
+    except Exception as e:
+        sys.exit(f"Error reading MD S(q,w) data for quantum correction: {e}")
+
+    for q, sqw_md in zip(q_md[INDICES], sqw_md_stack[INDICES], strict=True):
+        assure_db = partial(assure_detailed_balance, temperature=TEMPERATURE)
+        omega_gaaqc, sqw_gaaqc = sqw_gaaqc_model(q, time, gamma_qtm, gamma_cls, omega_md, sqw_md, correction=assure_db)
+        (line,) = plt.plot(
+            omega_gaaqc if USE_FREQUENCY_AXIS else omega_gaaqc * HBAR,
+            sqw_gaaqc,
+            label="GAAQC" if WITH_GA_RESULTS else f"GAAQC    {q = :.2f} 1/Ang",
+        )
+        if WITH_GA_RESULTS:
+            omega_ga, sqw_ga = sqw_ga_model(
+                q,
+                time,
+                gamma_qtm,
+                correction=assure_db,
+            )
+            plt.plot(
+                omega_ga if USE_FREQUENCY_AXIS else omega_ga * HBAR,
+                sqw_ga,
+                label=f"GA    {q = :.2f} 1/Ang",
+                ls="--" if INDICES.size > 1 else None,
+                color=line.get_color() if INDICES.size > 1 else None,
+            )
+    plt.yscale(SCALE)
+    if WITH_GA_RESULTS:
+        plt.legend(*reorder_legend_by_row(*plt.gca().get_legend_handles_labels(), ncol=2), ncol=2, loc="upper left")
+    else:
+        plt.legend()
+    plt.xlabel("Angular Frequency (Hz)" if USE_FREQUENCY_AXIS else "Energy (eV)")
+    plt.ylabel("Scattering Function $S(q,\\omega)$ (b·eV⁻¹·Sr⁻¹·ℏ⁻¹)")
+
+    save_or_show_plot(OUTPUT)
 
 
 ############################### Helper Functions ##############################
@@ -356,22 +438,11 @@ def odd_extend[T: np.number](arr: Array1D[T]) -> Array1D[T]:
     return np.concatenate((-arr[-1:0:-1], arr))
 
 
-def interpolate[T: np.floating, U: np.inexact](x: Array1D[T], xp: Array1D[T], fp: Array1D[U]) -> Array1D[U]:
-    if np.issubdtype(fp.dtype, np.complexfloating):
-        fp_abs = np.abs(fp)
-        fp_phase = np.unwrap(np.angle(fp))
-        fp_interp = np.interp(x, xp, fp_abs) * np.exp(1j * np.interp(x, xp, fp_phase))
-    else:
-        fp_interp = np.interp(x, xp, fp)
-    return cast(Array1D[U], fp_interp)
-
-
-def assure_detailed_balance[T: np.inexact](
-    freq: Array1D[np.floating], sqw: Array1D[T], temperature: float
-) -> Array1D[T]:
+def assure_detailed_balance(
+    freq: Array1D[np.floating], sqw: Array1D[np.floating], temperature: float
+) -> Array1D[np.floating]:
     freq_pos = freq[freq >= 0]
-    sqw_neg = interpolate(-freq_pos, freq, sqw)
-    sqw_pos = sqw_neg * np.exp(-HBAR * freq_pos / (KB * temperature))
+    sqw_pos = np.interp(-freq_pos, freq, sqw) * np.exp(-HBAR * freq_pos / (KB * temperature))
 
     return np.concatenate((sqw[freq < 0], sqw_pos))
 
