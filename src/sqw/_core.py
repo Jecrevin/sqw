@@ -61,9 +61,9 @@ def sqw_ga_model(
     time: Array1D[np.floating],
     width_func: Array1D[np.inexact],
     *,
-    correction: Callable[[Array1D[np.floating], Array1D[np.inexact]], Array1D[np.inexact]] | None = None,
+    correction: Callable[[Array1D[np.floating], Array1D[np.floating]], Array1D[np.floating]] | None = None,
     logger: Callable[[str], None] | None = print,
-) -> tuple[Array1D[np.double], Array1D[np.inexact]]:
+) -> tuple[Array1D[np.double], Array1D[np.floating]]:
     if not (q > 0):
         raise ValueError("Momentum transfer `q` must be greater than 0!")
     if not is_all_array_1d(time, width_func):
@@ -92,9 +92,9 @@ def _gaussian_approximation_core(
     time_tpl: tuple[np.floating, ...],
     gamma_tpl: tuple[np.inexact, ...],
     *,
-    correction: Callable[[Array1D[np.floating], Array1D[np.inexact]], Array1D[np.inexact]] | None,
+    correction: Callable[[Array1D[np.floating], Array1D[np.floating]], Array1D[np.floating]] | None,
     logger: Callable[[str], None] | None,
-) -> tuple[Array1D[np.floating], Array1D[np.inexact]]:
+) -> tuple[Array1D[np.floating], Array1D[np.floating]]:
     time = np.array(time_tpl)
     gamma = np.array(gamma_tpl)
 
