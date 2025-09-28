@@ -2,7 +2,6 @@ from collections.abc import Callable
 from functools import lru_cache
 
 import numpy as np
-from scipy.constants import pi as PI
 
 from ._math import (
     continuous_fourier_transform,
@@ -15,7 +14,7 @@ from ._math import (
     self_linear_convolve_x_axis,
     trim_function,
 )
-from .consts import HBAR, KB, NEUTRON_MASS
+from .consts import HBAR, KB, NEUTRON_MASS, PI
 from .typing import Array1D
 
 
