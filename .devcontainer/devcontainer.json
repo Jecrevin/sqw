@@ -39,8 +39,8 @@
 				"-ms-python.autopep8",
 				"-dbaeumer.vscode-eslint",
 				"charliermarsh.ruff",
-				"njpwerner.autodocstring",
-				"christian-kohler.path-intellisense"
+				"christian-kohler.path-intellisense",
+				"ms-toolsai.jupyter"
 			],
 			"settings": {
 				"[python]": {
