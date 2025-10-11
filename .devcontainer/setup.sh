@@ -13,5 +13,5 @@ echo 'eval "$(uvx --generate-shell-completion zsh)"' >> ~/.zshrc
 # set up uv link mode in container
 echo 'export UV_LINK_MODE="copy"' >> ~/.zshrc
 
-# git use `main` as default branch
-git config --global init.defaultBranch main
+# uv sync to install dependencies
+uv sync --all-groups --no-cache
