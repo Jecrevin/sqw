@@ -66,19 +66,6 @@ def continuous_fourier_transform(
     return freq, ft_signal
 
 
-def linear_interpolate(
-    x: Array1D[np.floating], xp: Array1D[np.floating], fp: Array1D[np.inexact]
-) -> Array1D[np.inexact]:
-    """Perform linear interpolation, supporting complex values."""
-    if np.iscomplexobj(fp):
-        fp_norm = np.abs(fp)
-        fp_phase = np.unwrap(np.angle(fp))
-        fp_interp = np.interp(x, xp, fp_norm) * np.exp(1j * np.interp(x, xp, fp_phase))
-    else:
-        fp_interp = np.interp(x, xp, fp)
-    return fp_interp  # type: ignore
-
-
 def trim_function[T: np.floating, U: np.inexact](
     x: Array1D[T], y: Array1D[U], cut_ratio: float
 ) -> tuple[Array1D[T], Array1D[U]]:

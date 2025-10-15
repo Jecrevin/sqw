@@ -9,7 +9,7 @@ from ._math import (
     is_all_array_linspace,
     is_array_linspace,
     linear_convolve,
-    linear_interpolate,
+    linear_convolve_x_axis,
     self_linear_convolve,
     self_linear_convolve_x_axis,
     trim_function,
@@ -160,28 +160,14 @@ def sqw_gaaqc_model(
         logger=logger,
     )
 
-    dw_qc = freq_qc[1] - freq_qc[0]
-    dw_md = freq_md[1] - freq_md[0]
-    if dw_qc >= dw_md:
-        # interpolate MD data to match the finer frequency grid of QC data
-        qc_index_in_md = (freq_qc >= freq_md[0]) & (freq_qc <= freq_md[-1])
-        sqw_qc_trimmed = sqw_qc[qc_index_in_md]
+    dw = freq_md[1] - freq_md[0]
+    nsamples = int((freq_qc[-1] - freq_qc[0]) / dw) + 1
+    freq_qc_aligned = np.linspace(freq_qc[0], freq_qc[-1], nsamples, dtype=freq_qc.dtype)
+    sqw_qc_aligned = np.interp(freq_qc_aligned, freq_qc, sqw_qc)
 
-        freq_qc_trimmed = freq_qc[qc_index_in_md]
-        sqw_md_interp = linear_interpolate(freq_qc_trimmed, freq_md, sqw_md)
-        raw_sqw_gaaqc = linear_convolve(sqw_qc_trimmed, sqw_md_interp, dw_qc)
-
-        omega = self_linear_convolve_x_axis(freq_qc_trimmed)
-    else:
-        # interpolate QC data to match the finer frequency grid of MD data
-        md_index_in_qc = (freq_md >= freq_qc[0]) & (freq_md <= freq_qc[-1])
-        sqw_md_trimmed = sqw_md[md_index_in_qc]
-
-        freq_md_trimmed = freq_md[md_index_in_qc]
-        sqw_qc_interp = linear_interpolate(freq_md_trimmed, freq_qc, sqw_qc)
-        raw_sqw_gaaqc = linear_convolve(sqw_qc_interp, sqw_md_trimmed, dw_md)
-
-        omega = self_linear_convolve_x_axis(freq_md_trimmed)
+    omega = linear_convolve_x_axis(freq_md, freq_qc_aligned)
+    raw_sqw_gaaqc = linear_convolve(sqw_md, sqw_qc_aligned, dw)
     sqw_gaaqc = correction(omega, raw_sqw_gaaqc) if correction else raw_sqw_gaaqc
+
 
     return omega, sqw_gaaqc
