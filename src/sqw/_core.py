@@ -71,8 +71,6 @@ def sqw_ga_model(
         raise ValueError("Time array must be evenly spaced!")
     if time.size != width_func.size:
         raise ValueError("Input arrays must have the same length!")
-    if not any(np.isclose(time, 0, atol=1e-24, rtol=0)):
-        raise ValueError("Time array must contain zero time point for accurate Fourier Transform!")
 
     if logger:
         logger(f"Calculating S(q,w) with Gaussian Approximation model ({q = :.2f} 1/Ang)...")
@@ -149,8 +147,6 @@ def sqw_gaaqc_model(
         raise ValueError("Time, quantum width function and classical width function arrays must have the same length!")
     if freq_md.size != sqw_md.size:
         raise ValueError("Frequency and MD S(q,w) arrays must have the same length!")
-    if not any(np.isclose(time_ga, 0, atol=1e-24, rtol=0)):
-        raise ValueError("Time array must contain zero time point for accurate Fourier Transform!")
 
     freq_qc, sqw_qc = _gaussian_approximation_core(
         q,
@@ -168,6 +164,5 @@ def sqw_gaaqc_model(
     omega = linear_convolve_x_axis(freq_md, freq_qc_aligned)
     raw_sqw_gaaqc = linear_convolve(sqw_md, sqw_qc_aligned, dw)
     sqw_gaaqc = correction(omega, raw_sqw_gaaqc) if correction else raw_sqw_gaaqc
-
 
     return omega, sqw_gaaqc
