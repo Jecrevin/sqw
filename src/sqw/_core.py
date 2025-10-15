@@ -60,6 +60,7 @@ def sqw_ga_model(
     time: Array1D[np.floating],
     width_func: Array1D[np.inexact],
     *,
+    window: bool = False,
     correction: Callable[[Array1D[np.floating], Array1D[np.floating]], Array1D[np.floating]] | None = None,
     logger: Callable[[str], None] | None = print,
 ) -> tuple[Array1D[np.double], Array1D[np.floating]]:
@@ -75,7 +76,9 @@ def sqw_ga_model(
     if logger:
         logger(f"Calculating S(q,w) with Gaussian Approximation model ({q = :.2f} 1/Ang)...")
 
-    result = _gaussian_approximation_core(q, tuple(time), tuple(width_func), correction=correction, logger=logger)
+    result = _gaussian_approximation_core(
+        q, tuple(time), tuple(width_func), window=window, correction=correction, logger=logger
+    )
 
     if logger:
         logger(f"S(q,w) GA result for {q = :.2f} calculation completed.")
@@ -89,6 +92,7 @@ def _gaussian_approximation_core(
     time_tpl: tuple[np.floating, ...],
     gamma_tpl: tuple[np.inexact, ...],
     *,
+    window: bool,
     correction: Callable[[Array1D[np.floating], Array1D[np.floating]], Array1D[np.floating]] | None,
     logger: Callable[[str], None] | None,
 ) -> tuple[Array1D[np.floating], Array1D[np.floating]]:
@@ -100,7 +104,7 @@ def _gaussian_approximation_core(
 
     if q <= 5:
         sisf = np.exp(-0.5 * q**2 * gamma)  # Self-Intermediate Scattering Function, F(q,t)
-        omega, ft_sisf = continuous_fourier_transform(time, sisf)
+        omega, ft_sisf = continuous_fourier_transform(time, sisf * np.hanning(sisf.size) if window else sisf)
         # NOTE: For quantum system, the width function (gamma) is Hermitian
         # thus the SISF is also Hermitian, and the FT result is real.
         # For classical system, gamma is real and even, thus SISF is also real and even,
@@ -116,6 +120,7 @@ def _gaussian_approximation_core(
         recur_q,
         time_tpl,
         gamma_tpl,
+        window=window,
         correction=None,  # delay correction after convolution to avoid magnitude issues
         logger=logger,
     )
@@ -134,6 +139,7 @@ def sqw_gaaqc_model(
     freq_md: Array1D[np.floating],
     sqw_md: Array1D[np.floating],
     *,
+    window: bool = False,
     correction: Callable[[Array1D[np.floating], Array1D[np.floating]], Array1D[np.floating]] | None = None,
     logger: Callable[[str], None] | None = print,
 ) -> tuple[Array1D[np.floating], Array1D[np.floating]]:
@@ -152,6 +158,7 @@ def sqw_gaaqc_model(
         q,
         tuple(time_ga),
         tuple(width_func_qtm - width_func_cls),
+        window=window,
         correction=None,
         logger=logger,
     )
