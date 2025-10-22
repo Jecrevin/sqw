@@ -153,6 +153,9 @@ def sqw_gaaqc_model(
         raise ValueError("Time, quantum width function and classical width function arrays must have the same length!")
     if freq_md.size != sqw_md.size:
         raise ValueError("Frequency and MD S(q,w) arrays must have the same length!")
+    
+    if logger:
+        logger(f"Calculating S(q,w) with GAAQC model ({q = :.2f} 1/Ang)...")
 
     freq_qc, sqw_qc = _gaussian_approximation_core(
         q,
@@ -171,5 +174,8 @@ def sqw_gaaqc_model(
     omega = linear_convolve_x_axis(freq_md, freq_qc_aligned)
     raw_sqw_gaaqc = linear_convolve(sqw_md, sqw_qc_aligned, dw)
     sqw_gaaqc = correction(omega, raw_sqw_gaaqc) if correction else raw_sqw_gaaqc
+
+    if logger:
+        logger(f"S(q,w) GAAQC result for {q = :.2f} calculation completed.")
 
     return omega, sqw_gaaqc
