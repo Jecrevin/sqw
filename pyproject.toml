@@ -26,6 +26,7 @@ notebook = [
     "h5py>=3.14.0",
     "ipykernel>=6.30.1",
     "ipympl>=0.9.8",
+    "lmfit>=1.3.4",
     "matplotlib>=3.10.6",
     "nbformat>=5.10.4",
 ]
@@ -41,6 +42,7 @@ line-length = 120
 select = [
     # general
     "I",  # isort
+    "D",  # pydocstyle
     "E",  # pycodestyle (error)
     "F",  # pyflakes
     "UP",  # pyupgrade
@@ -49,11 +51,12 @@ select = [
     "B",  # flake8-bugbear
     "FA",  # flake8-future-annotations
     "C90",  # mccabe
+    "N",  # pep-8 naming convention
     "NPY",  # NumPy-specific rules
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"*.ipynb" = [ "F821" ]
+"*.ipynb" = [ "F821", "D" ]
 
 [tool.ruff.format]
 docstring-code-format = true
