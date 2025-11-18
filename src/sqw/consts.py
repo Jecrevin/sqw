@@ -1,3 +1,5 @@
+"""Physical constants used in neutron scattering calculations."""
+
 from typing import Final
 
 import scipy.constants as consts

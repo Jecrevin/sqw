@@ -42,8 +42,7 @@ def linear_convolve_x_axis[T: np.floating, U: np.floating](x1: Array1D[T], x2: A
 
 
 def self_linear_convolve_x_axis[T: np.floating](x: Array1D[T]) -> Array1D[T]:
-    """Calculate the corresponding x-axis of the linear convolution of a
-    function with itself sampled on an evenly spaced grid."""
+    """Calculate the corresponding x-axis of the linear convolution."""
     return linear_convolve_x_axis(x, x)
 
 
