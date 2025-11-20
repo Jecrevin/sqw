@@ -513,3 +513,6 @@ __marimo__/
 
 # data files
 data/
+
+# playground script
+scripts/playground.py
