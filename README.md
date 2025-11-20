@@ -1,209 +1,262 @@
 # h2o-sqw-calc
 
-Compute and visualize the **neutron scattering function** $S(Q, \omega)$
-(Denoted as *sqw* in this project) of liquid water ($\mathrm{H_2O}$) from data of
-time relevent part function $\Gamma(t)$ (Denoted as *gamma*) of SISF (Self-Intermediate
-Scattering Function). The project implements a **CDFT (FFT-based)** approach and
-compares it against an **STC (Short-Time-Collision)** model, with utilities to
-explore classical data, the *gamma* function, and *quantum correction factors*.
+Calculate and visualize the **neutron scattering function** $S(Q, \omega)$ of liquid water ($\mathrm{H_2O}$) based on molecular dynamics simulation data. This project implements multiple theoretical models to compute the neutron scattering function from the time-dependent partial function $\Gamma(t)$ of the self-intermediate scattering function (SISF).
 
-## What’s inside
+## Theoretical Models
 
-- **CDFT-based** *sqw* calculation with recursive self-convolution for large Q
-- **STC model** for comparison and peak tracking
-- **Plotting utilities:** plot scripts for
-    - data from *gamma*
-    - *sqw* results from direct FFT
-    - comparison of *sqw* results from CDFT and STC model
-    - stacking heat plot of different Q results of *sqw*
-    - data of classical *sqw*
-    - quantum correction factor data
-- **HDF5 data** under `data/` and example figures under `fig/`
+The project implements three neutron scattering function calculation models:
 
-Repository layout (key parts):
+- **GA (Gaussian Approximation)**: Gaussian approximation model based on CDFT (Continuous Fourier Transform) method, supports recursive self-convolution for large Q values
+- **GAAQC (GA-assisted Quantum Correction)**: GA-assisted quantum correction model that combines quantum and classical width functions
+- **STC (Short-Time Collision)**: Short-time collision approximation model for comparison and peak tracking
 
-- `src/h2o_sqw_calc/`: core math, I/O helpers, utilities
-- `script/`: runnable plotting scripts (documented below)
-- `data/`: example input files (gamma/STC/classical)
-- `fig/`: output figures (created when using `-o`)
+## Project Structure
 
-## Environment setup
+```
+h2o-sqw-calc/
+├── src/sqw/              # Core Python package
+│   ├── _core.py          # Implementation of three models
+│   ├── _math.py          # Mathematical utility functions
+│   ├── consts.py         # Physical constants definitions
+│   ├── typing.py         # Type definitions
+│   └── __init__.py       # Package initialization
+├── scripts/
+│   ├── calculation/      # Calculation scripts
+│   │   ├── sqw_ga_2d.py              # GA model 2D calculation
+│   │   ├── sqw_gaaqc_2d.py           # GAAQC model 2D calculation
+│   │   ├── cross_section.py          # Scattering cross-section calculation
+│   │   ├── cdft_stc_comparison.py    # CDFT vs STC comparison
+│   │   ├── sisf_qc_factor_q1.63.py   # Quantum correction factor calculation
+│   │   ├── sqw_ga_fft_various_q.py   # Multi-Q FFT calculation
+│   │   └── fft_stc_comarison_q40.py  # Q=40 FFT/STC comparison
+│   └── plot/             # Visualization scripts
+│       ├── sqw_ga_2d.py              # S(Q,ω) 2D heatmap
+│       ├── sqw_gaaqc_2d.py           # GAAQC results visualization
+│       ├── cross_section.py          # Scattering cross-section comparison plot
+│       ├── cdft_stc_comarison_various_q.py  # Multi-Q comparison
+│       ├── width_function.py         # Width function visualization
+│       ├── sisf_qc_factor_1.63.py    # Quantum correction factor plot
+│       ├── sqw_ga_fft_various_q.py   # FFT results visualization
+│       └── sqw_ga_q1.py               # Single Q value result plot
+├── data/                 # Data directory
+│   ├── molecular_dynamics/           # MD simulation data
+│   │   ├── h2o_293k_all.h5          # 293K water complete data
+│   │   ├── h2o_293k_stc.h5          # STC model data
+│   │   └── hydrogen_293k_gamma.h5    # Hydrogen width function data
+│   ├── cross_section_experiment/     # Experimental scattering cross-section data
+│   │   ├── Bischoff/
+│   │   ├── Esch/
+│   │   ├── Harling/
+│   │   ├── Ramic/
+│   │   ├── Wendorff/
+│   │   └── total/
+│   └── results/          # Calculation results output
+├── figs/                 # Figure output directory
+├── tests/                # Unit tests
+│   └── test_math.py
+└── pyproject.toml        # Project configuration
+```
 
-Clone the repository:
+## Core Features
+
+### Model Implementation (`src/sqw/_core.py`)
+
+#### 1. GA Model (`sqw_ga_model`)
+Gaussian approximation model that calculates the frequency-domain scattering function from the time-domain width function $\Gamma(t)$:
+- For $Q \leq 5$: Direct calculation of SISF and Fourier transform
+- For $Q > 5$: Recursive self-convolution method for improved computational efficiency
+- Supports window functions and detailed balance correction
+
+#### 2. GAAQC Model (`sqw_gaaqc_model`)
+Quantum correction model combining quantum and classical width functions:
+- Uses quantum width function to calculate high-frequency components
+- Uses classical MD data to correct low-frequency components
+- Combines both parts through convolution
+
+#### 3. STC Model (`sqw_stc_model`)
+Short-time collision approximation model:
+- Based on density of states (DOS) data
+- Calculates effective temperature
+- Provides analytical form of scattering function
+
+### Mathematical Tools (`src/sqw/_math.py`)
+
+- **Fourier Transform**: `continuous_fourier_transform` - Continuous Fourier transform implementation
+- **Convolution Operations**: 
+  - `linear_convolve` - Linear convolution of two functions
+  - `self_linear_convolve` - Function self-convolution
+- **Array Validation**:
+  - `is_array_linspace` - Check if array is uniformly spaced
+  - `is_all_array_1d` - Check if all arrays are one-dimensional
+- **Data Processing**: `trim_function` - Trim low-value regions of functions
+
+### Physical Constants (`src/sqw/consts.py`)
+
+- `HBAR`: Reduced Planck constant (eV·s)
+- `KB`: Boltzmann constant (eV/K)
+- `NEUTRON_MASS`: Neutron mass (eV/(Å/s)²)
+- `PI`: Pi
+
+## Environment Setup
+
+This project requires Python 3.13+ and provides Dev Container support.
+
+### Clone Repository
 
 ```bash
 git clone https://code.ihep.ac.cn/jianghr/h2o-sqw-calc.git
 cd h2o-sqw-calc
 ```
 
-> *NOTE:* If you use the Dev Container, you can skip cloning locally. In VS Code,
-> use the command palette entry “Dev Containers: Clone Repository in …” to clone
-> this repository directly into a container volume and open it there.
-
-This project targets Python 3.13 and ships a Dev Container. Choose one of the
-options below.
-
-### Option A: Dev Container (recommended)
+### Method A: Dev Container (Recommended)
 
 **Prerequisites**
+- Install Docker and ensure it's running (Windows/macOS use Docker Desktop, Linux uses Docker Engine)
+- Install VS Code and the Dev Containers extension
 
-- Install Docker and ensure it is running (Docker Desktop on macOS/Windows or
-	Docker Engine on Linux).
+**Open in Container**
+1. Press Ctrl/Cmd+Shift+P in VS Code
+2. Run "Dev Containers: Clone Repository in Container Volume"
+3. Paste the repository URL
 
-**Open in a container**
-
-- From VS Code, press Ctrl/Cmd+Shift+P and run:
-	“Dev Containers: Clone Repository in …”, then paste the repo URL
-	(no local clone needed). Or, if you already have the folder locally, open it
-	and choose “Reopen in Container”.
-
-The container comes with uv preinstalled and mirrors configured. Then install
-deps:
+The container comes with uv package manager pre-installed and configured with mirror sources. Install dependencies:
 
 ```bash
 uv sync
 ```
 
-### Option B: uv (local)
+### Method B: Using uv (Local)
 
-1) Install uv: https://docs.astral.sh/uv/getting-started/installation/
+1. Install uv: https://docs.astral.sh/uv/getting-started/installation/
 
-2) Install deps for this project:
+2. Install project dependencies:
 
 ```bash
 uv sync
 ```
 
-### Option C: pip/venv
+### Method C: Using pip/venv
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
-pip install .
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -e ".[script]"
 ```
 
-**Notes**
+## Usage
 
-- Default data files live in `data/` and can be overridden via CLI flags (see
-	each script).
-- Without `-o/--output`, plots open interactively; with `-o`, they are saved to
-	`fig/...` (overwrite prompt included).
-- **Important:** The `data/` folder contents are **NOT** included in the remote
-	repository. You must prepare/provide the required HDF5 files yourself (see
-	Data files below) or adjust paths via CLI flags.
+### Running Calculation Scripts
 
-## Running
-
-All entry points are regular Python scripts under `script/`.
-
-If you have uv installed
-
+Using uv:
 ```bash
-uv run script/<script_name>.py [ARGS]
+uv run scripts/calculation/sqw_ga_2d.py
 ```
 
-Without uv (activate your venv first)
-
+Or after activating the virtual environment:
 ```bash
 source .venv/bin/activate
-python3 script/<script_name>.py [ARGS]
+python scripts/calculation/sqw_ga_2d.py
 ```
 
-### 1) Compare CDFT vs STC: `plot_sqw.py`
-
-Plots S(Q, ω) from CDFT together with the STC model for one or more Q values.
-
-- Positional Q can be a list: `10 20 30`, or a range: `5-50` with `--step`.
-- Useful flags: `-e/--element {H,O}`, `-gamma/--gamma-file-path`,
-  `-stc/--stc-file-path`, `-t/--temperature`, `--energy-unit`, `-o/--output`.
-
-**Example**
+### Running Plot Scripts
 
 ```bash
-uv run script/plot_sqw.py 5-40 --step 5 -e H --energy-unit \
-	-o fig/sqw_comparison_plot.png
+uv run scripts/plot/sqw_ga_2d.py
 ```
 
-### 2) Stacked CDFT map + STC max line: `plot_sqw_stack.py`
+### Main Scripts Description
 
-Builds a Q–ω map from CDFT and overlays the STC peak trajectory.
+#### Calculation Scripts
 
-- Positional `q-range` like `5-60`; spacing via `--step` (default 5.0).
-- Same file/element/temperature flags as above; `--energy-unit`, `-o`
-	supported.
+1. **`sqw_ga_2d.py`**: Calculate 2D S(Q,ω) array for Q ∈ [1, 100]
+   - Uses GA model
+   - Applies 293K detailed balance correction
+   - Outputs HDF5 file to `data/results/sqw_ga_2d.h5`
 
-**Example**
+2. **`cross_section.py`**: Calculate double differential scattering cross-section
+   - Supports GA and GAAQC models
+   - Comparison with experimental data
+   - Angle and energy conversion to momentum transfer
+
+3. **`cdft_stc_comparison.py`**: CDFT and STC model comparison
+   - Parallel computation for multiple Q values
+   - Saves comparison data for plotting
+
+#### Plot Scripts
+
+1. **`sqw_ga_2d.py`**: Plot S(Q,ω) 2D heatmap
+   - Color heatmap showing intensity distribution
+   - Overlay STC model peak position curves
+
+2. **`cross_section.py`**: Scattering cross-section vs experimental comparison
+   - Theoretical calculation vs experimental data
+   - Multiple scattering angles
+   - Different incident energies
+
+3. **`width_function.py`**: Width function visualization
+   - Display |Γ(t)|, Re Γ(t), Im Γ(t)
+   - Quantum and classical width function comparison
+
+## Data Files Description
+
+**Note**: The repository does not include large data files. You need to prepare the following data yourself:
+
+### Input Data (`data/molecular_dynamics/`)
+
+- **`hydrogen_293k_gamma.h5`**: Hydrogen width function data
+  - Datasets: `time_vec`, `gamma_qtm_real`, `gamma_qtm_imag`, `gamma_cls`
+  
+- **`h2o_293k_all.h5`**: Complete 293K water MD data
+  
+- **`h2o_293k_stc.h5`**: Data required for STC model
+  - Datasets: `inc_omega_H`, `inc_vdos_H` (hydrogen), 
+            `inc_omega_O`, `inc_vdos_O` (oxygen)
+
+### Experimental Data (`data/cross_section_experiment/`)
+
+Contains experimental scattering cross-section data from multiple researchers:
+- Bischoff, Esch, Harling, Ramic, Wendorff, etc.
+
+Data format is JSON or text files.
+
+### Output Results (`data/results/`)
+
+Calculation scripts generate the following files:
+- `sqw_ga_2d.h5`: GA model 2D results
+- `sqw_gaaqc_2d.h5`: GAAQC model 2D results
+- `cross_section_*.csv`: Scattering cross-section calculation results
+- `sqw_ga_cdft_stc_comparison/`: CDFT and STC comparison data
+
+## Testing
+
+Run unit tests:
 
 ```bash
-uv run script/plot_sqw_stack.py 5-60 --step 5 -e H --energy-unit \
-	-o fig/sqw_stack_plot.png
+uv run pytest tests/
 ```
 
-### 3) Direct FFT S(Q, ω): `plot_fft.py`
-
-Computes S(Q, ω) directly from *gamma(t)* with FFT for one or more Q; supports
-linear/log y-scale.
-
-- Q list or range; flags: `-e`, `-f/--file-path`, `--scale {linear,log}`, `-o`.
-
-**Example**
+Or with coverage:
 
 ```bash
-uv run script/plot_fft.py 10 20 30 --scale log -e H -o fig/fft_plot.png
+uv run coverage run -m pytest tests/
+uv run coverage report
 ```
 
-### 4) Gamma function: `plot_gamma.py`
+## Dependencies
 
-Visualizes |*γ(t)*|, Re *γ(t)*, Im *γ(t)* for H or O.
+### Core Dependencies
+- `numpy >= 2.3.2`: Numerical computation
+- `scipy >= 1.16.1`: Scientific computing and signal processing
 
-- Flags: `-e`, `-f/--file-path`, `-o`.
+### Script Dependencies
+- `matplotlib >= 3.10.6`: Data visualization
+- `h5py >= 3.14.0`: HDF5 file reading and writing
 
-**Example**
+### Development Dependencies
+- `ruff >= 0.12.9`: Code formatting and linting
+- `coverage >= 7.10.4`: Test coverage
+- `sphinx >= 8.2.3`: Documentation generation
 
-```bash
-uv run script/plot_gamma.py -e H -f data/last_H.gamma -o fig/gamma_plot.png
-```
+## References
 
-### 5) Classical S(Q, ω): `plot_sqw_cls.py`
-
-Plots classical S(Q, ω) curves from a merged `.sqw` file for selected index positions (corresponding Q shown in legend).
-
-- Positional indices as list/ranges: e.g. `1-5 8 12-20 --step 2`.
-- Flags: `-f/--file-path` (default `data/merged_h2o_293k.sqw`),
-  `--element {H,O}`, `-o`.
-
-Example
-
-```bash
-uv run script/plot_sqw_cls.py 1-5 8 --element H \
-	-f data/merged_h2o_293k.sqw -o fig/sqw_cls_plot.png
-```
-
-### 6) Quantum correction factor R(Q, t): `plot_correction_factor.py`
-
-Computes and plots `R(Q, t) = exp[-Q²/2 (γ_qtm - γ_cls)]` at a given Q using
-quantum and classical gamma.
-
-- Positional: `q` (float). Flags: `-e`, `-f/--file-path`, `-o`.
-
-**Example**
-
-```bash
-uv run script/plot_correction_factor.py 40 -e H -o fig/correction_factor_plot.png
-```
-
-## Data files (defaults)
-
-**The repository does not ship input data.** The paths below are the expected
-defaults used by the scripts; you must create/provide these files yourself or
-point the scripts to your own data via CLI flags.
-
-- Gamma: `data/last_{element}.gamma` (datasets: time_vec, gamma_qtm_real/imag,
-  optional gamma_cls)
-- STC model: `data/last.sqw` (datasets: inc_omega_{element},
-  inc_vdos_{element})
-- Classical S(Q, ω): `data/merged_h2o_293k.sqw` (datasets: qVec_{element},
-  inc_omega_{element}, inc_sqw_{element})
-
-Adjust paths via the corresponding CLI flags when using your own files.
-
+If you use this code, please cite the relevant paper (to be published).
