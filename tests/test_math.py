@@ -1,3 +1,5 @@
+"""Test cases for math utilities in sqw._math module."""
+
 import unittest
 
 import numpy as np
@@ -16,12 +18,16 @@ from sqw._math import (
 
 
 class TestMath(unittest.TestCase):
+    """Test cases for math utilities in sqw._math module."""
+
     def test_is_all_array_1d(self):
+        """Test `is_all_array_1d` function."""
         self.assertTrue(is_all_array_1d(np.array([1, 2]), np.array([3, 4])))
         self.assertFalse(is_all_array_1d(np.array([1, 2]), np.array([[3, 4]])))
         self.assertTrue(is_all_array_1d())
 
     def test_is_array_linspace(self):
+        """Test `is_array_linspace` function."""
         self.assertTrue(is_array_linspace(np.array([1, 2, 3])))
         self.assertTrue(is_array_linspace(np.array([1.0, 1.5, 2.0])))
         self.assertFalse(is_array_linspace(np.array([1, 2, 4])))
@@ -36,11 +42,13 @@ class TestMath(unittest.TestCase):
         self.assertFalse(is_array_linspace(np.array([0, 1e16, 2.0001e16])))
 
     def test_is_all_array_linspace(self):
+        """Test `is_all_array_linspace` function."""
         self.assertTrue(is_all_array_linspace(np.array([1, 2, 3]), np.linspace(0, 1, 5)))
         self.assertFalse(is_all_array_linspace(np.array([1, 2, 3]), np.array([1, 3, 4])))
         self.assertTrue(is_all_array_linspace())
 
     def test_linear_convolve(self):
+        """Test `linear_convolve` function."""
         # Test convolution of two box functions, which results in a triangle function
         dx = 0.01
         x = np.arange(-1, 1 + dx, dx)
@@ -56,6 +64,7 @@ class TestMath(unittest.TestCase):
         np.testing.assert_allclose(result, analytical, atol=dx)
 
     def test_self_linear_convolve(self):
+        """Test `self_linear_convolve` function."""
         fx = np.array([1.0, 2.0, 1.0])
         dx = 0.5
         expected = linear_convolve(fx, fx, dx)
@@ -63,6 +72,7 @@ class TestMath(unittest.TestCase):
         np.testing.assert_allclose(result, expected)
 
     def test_linear_convolve_x_axis(self):
+        """Test `linear_convolve_x_axis` function."""
         x1 = np.linspace(0, 1, 11)
         x2 = np.linspace(0.5, 1.5, 21)
         result = linear_convolve_x_axis(x1, x2)
@@ -70,12 +80,14 @@ class TestMath(unittest.TestCase):
         np.testing.assert_allclose(result, expected)
 
     def test_self_linear_convolve_x_axis(self):
+        """Test `self_linear_convolve_x_axis` function."""
         x = np.linspace(-1, 1, 101)
         result = self_linear_convolve_x_axis(x)
         expected = linear_convolve_x_axis(x, x)
         np.testing.assert_allclose(result, expected)
 
     def test_continuous_fourier_transform(self):
+        """Test `continuous_fourier_transform` function."""
         # Test with a Gaussian function, whose Fourier transform is also a Gaussian.
         # f(t) = exp(-a * t^2) -> F(w) = sqrt(pi/a) * exp(-w^2 / (4a))
         a = 0.5
@@ -98,6 +110,7 @@ class TestMath(unittest.TestCase):
         np.testing.assert_allclose(ft_signal_c, analytical_ft_c, atol=1e-9)
 
     def test_trim_function(self):
+        """Test `trim_function` function."""
         x = np.linspace(-10, 10, 101)
         y = np.zeros(101)
         y[40:61] = np.sin(np.linspace(0, np.pi, 21))  # Peak at index 50
