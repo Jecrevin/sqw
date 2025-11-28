@@ -13,6 +13,8 @@ def main() -> None:
     data_file = Path(__file__).parents[2] / "data" / "results" / "sisf_qc_factor_q1.63.csv"
     out_dir = Path(__file__).parents[2] / "figs"
 
+    out_dir.mkdir(parents=True, exist_ok=True)
+
     time, sisf_qtm_abs, sisf_cls, sisf_qc_abs = np.loadtxt(data_file, delimiter=",", unpack=True)
 
     plt_style_setup()

@@ -19,6 +19,8 @@ def main() -> None:
     data_file = Path(__file__).parents[2] / "data" / "results" / "sqw_ga_fft_cdft.csv"
     fig_dir = Path(__file__).parents[2] / "figs"
 
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
     omega, fft_res, cdft_res = np.loadtxt(data_file, delimiter=",", unpack=True)
 
     plt_style_setup()

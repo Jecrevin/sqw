@@ -18,7 +18,8 @@ def main() -> None:
     """Plot S(Q, omega) comparison between FFT and STC methods at Q=4.0 Å⁻¹."""
     data_dir = Path(__file__).parents[2] / "data" / "results" / "fft_stc_comparison_q40"
     fig_dir = Path(__file__).parents[2] / "figs"
-    fig_dir.mkdir(exist_ok=True)
+    
+    fig_dir.mkdir(parents=True, exist_ok=True)
 
     omega_fft, sqw_fft = np.loadtxt(data_dir / "sqw_fft_q40.csv", delimiter=",", unpack=True)
     omega_stc, sqw_stc = np.loadtxt(data_dir / "sqw_stc_q40.csv", delimiter=",", unpack=True)

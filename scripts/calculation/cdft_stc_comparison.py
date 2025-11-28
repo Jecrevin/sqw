@@ -20,12 +20,12 @@ def main() -> None:
     input_dir = data_dir / "molecular_dynamics"
     out_dir = data_dir / "results" / "sqw_ga_cdft_stc_comparison"
 
-    out_dir.mkdir(exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     time, gamma_qtm, _ = read_gamma_data(
         input_dir / "hydrogen_293k_gamma.h5", keys=["time_vec", "gamma_qtm_real", "gamma_qtm_imag", "gamma_cls"]
     )
-    omega_vdos, vdos = read_stc_data(input_dir / "h2o_293k_stc.h5", keys=["inc_omega_H", "inc_vdos_H"])
+    omega_vdos, vdos = read_stc_data(input_dir / "h2o_293k_vdos.h5", keys=["inc_omega_H", "inc_vdos_H"])
 
     q_vals = np.arange(10, 90, 10)  # unit: Å⁻¹
     temperature = 293.0  # unit: K

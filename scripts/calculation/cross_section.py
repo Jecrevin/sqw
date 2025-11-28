@@ -1,3 +1,5 @@
+"""Calculate double differential cross section using SQW models."""
+
 import json
 from functools import partial
 from os import PathLike
@@ -158,11 +160,12 @@ def get_exp_data_at_fixed_condition(file: PathLike, cond: dict[Literal["angle", 
 
 
 def main() -> None:
+    """Calculate double differential cross section using SQW models and save results to CSV files."""
     data_dir = Path(__file__).parents[2] / "data"
     input_dir = data_dir / "molecular_dynamics"
     out_dir = data_dir / "results" / "cross_section"
 
-    out_dir.mkdir(exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     time, gamma_qtm, gamma_cls = read_gamma_data(
         input_dir / "hydrogen_293k_gamma.h5",
@@ -173,7 +176,7 @@ def main() -> None:
     assert gamma_cls is not None, "`gamma_cls` should not be None when `include_cls` is True."
 
     q_vals, omega_md, sqw_md_stack = read_md_data(
-        input_dir / "h2o_293k_all.h5", keys=["qVec_H", "inc_omega_H", "inc_sqw_H"]
+        input_dir / "h2o_293k_sqw_md.h5", keys=["qVec_H", "inc_omega_H", "inc_sqw_H"]
     )
 
     sqw_gaaqc_results = [

@@ -22,7 +22,7 @@ def main() -> None:
     input_dir = data_dir / "molecular_dynamics"
     out_dir = data_dir / "results"
 
-    out_dir.mkdir(exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     time, gamma_qtm, gamma_cls = read_gamma_data(
         input_dir / "hydrogen_293k_gamma.h5",
@@ -33,7 +33,7 @@ def main() -> None:
     assert gamma_cls is not None, "`include_cls` must be True to get `gamma_cls`."
 
     q_vals, omega_md, sqw_md_stack = read_md_data(
-        input_dir / "h2o_293k_all.h5", keys=["qVec_H", "inc_omega_H", "inc_sqw_H"]
+        input_dir / "h2o_293k_sqw_md.h5", keys=["qVec_H", "inc_omega_H", "inc_sqw_H"]
     )
 
     omega = np.linspace(-10 / HBAR, 2 / HBAR, num=1000)

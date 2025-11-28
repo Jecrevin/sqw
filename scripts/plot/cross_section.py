@@ -15,7 +15,7 @@ def main() -> None:
     file_list = sorted(p for p in data_dir.glob("*.csv") if not p.name.endswith(".exp.csv"))
     out_dir = Path(__file__).parents[2] / "figs" / "cross_section"
 
-    out_dir.mkdir(exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     plt_style_setup()
 

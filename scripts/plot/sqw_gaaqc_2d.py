@@ -16,6 +16,8 @@ def main() -> None:
     data_file = Path(__file__).parents[2] / "data/results/sqw_gaaqc_2d.h5"
     out_dir = Path(__file__).parents[2] / "figs"
 
+    out_dir.mkdir(parents=True, exist_ok=True)
+
     with h5py.File(data_file) as f:
         q_vals = cast(h5py.Dataset, f["q_vals"])[()]
         omega = cast(h5py.Dataset, f["omega"])[()]

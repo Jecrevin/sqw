@@ -19,6 +19,8 @@ def main() -> None:
     data_file = Path(__file__).parents[2] / "data" / "results" / "sqw_ga_fft_various_q.csv"
     fig_dir = Path(__file__).parents[2] / "figs"
 
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
     data = np.loadtxt(data_file, delimiter=",")
 
     q_vals = np.arange(10, 22, 2)  # unit: Å⁻¹

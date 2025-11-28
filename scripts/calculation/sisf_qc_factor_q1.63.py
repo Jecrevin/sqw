@@ -12,7 +12,7 @@ def main() -> None:
     input_dir = data_dir / "molecular_dynamics"
     out_dir = data_dir / "results"
 
-    out_dir.mkdir(exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     time, gamma_qtm, gamma_cls = read_gamma_data(
         input_dir / "hydrogen_293k_gamma.h5",

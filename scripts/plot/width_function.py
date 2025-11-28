@@ -30,6 +30,8 @@ def main() -> None:
     data_file = Path(__file__).parents[2] / "data" / "molecular_dynamics" / "hydrogen_293k_gamma.h5"
     fig_dir = Path(__file__).parents[2] / "figs"
 
+    fig_dir.mkdir(parents=True, exist_ok=True)
+
     time, gamma_qtm, _ = _load_helper().read_gamma_data(
         data_file, ["time_vec", "gamma_qtm_real", "gamma_qtm_imag", "gamma_cls"], include_cls=False
     )

@@ -12,7 +12,6 @@ import numpy as np
 from helper import plt_style_setup
 from matplotlib import pyplot as plt
 from matplotlib.legend_handler import HandlerTuple
-from matplotlib.lines import Line2D
 
 from sqw.consts import HBAR
 
@@ -21,6 +20,8 @@ def main() -> None:
     """Plot S(Q, ω) GA CDFT and STC model comparison for various Q values."""
     data_dir = Path(__file__).parents[2] / "data" / "results" / "sqw_ga_cdft_stc_comparison"
     fig_dir = Path(__file__).parents[2] / "figs"
+
+    fig_dir.mkdir(parents=True, exist_ok=True)
 
     q_vals = np.arange(10, 90, 10)  # unit: Å⁻¹
 
