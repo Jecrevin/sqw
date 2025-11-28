@@ -511,8 +511,13 @@ __marimo__/
 
 ################################ Custom Ignores ###############################
 
-# data files
-data/
+# track libfilon.so, required for scripts/vdos2gamma.py
+!scripts/libfilon.so
+
+# calculated result data
+data/molecular_dynamics/*_gamma.h5
+data/results/
+
 # plotting output
 figs/
 
