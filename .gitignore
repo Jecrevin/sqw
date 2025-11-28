@@ -513,6 +513,8 @@ __marimo__/
 
 # data files
 data/
+# plotting output
+figs/
 
 # playground script
 scripts/playground.py
