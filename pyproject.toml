@@ -46,5 +46,8 @@ select = [
     "NPY",  # NumPy-specific rules
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"scripts/playground.py" = ["D"]
+
 [tool.ruff.format]
 docstring-code-format = true
