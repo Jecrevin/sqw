@@ -25,7 +25,37 @@ def sqw_stc_model(
     density_of_states: Array1D[np.floating],
     temperature: float,
 ) -> Array1D[np.floating]:
-    """Calculate Scattering function S(q,w) using Short Time Collision Approximation (STC) model."""
+    """Calculate Scattering function S(q,w) using Short Time Collision Approximation (STC) model.
+
+    Parameters
+    ----------
+    q : float
+        Momentum transfer in units of 1/Angstrom.
+    w : Array1D[np.floating]
+        Sampling angular frequency values where S(q,w) is calculated, in units
+        of rad/s.
+    freq_dos : Array1D[np.floating]
+        Vibrational density of states (VDOS) angular frequency sampling points,
+        in units of rad/s.
+    density_of_states : Array1D[np.floating]
+        Vibrational density of states (VDOS) values corresponding to
+        `freq_dos`.
+    temperature : float
+        System temperature in Kelvin.
+
+    Returns
+    -------
+    Array1D[np.floating]
+        Calculated S(q,w) values corresponding to input `w`.
+
+    Raises
+    ------
+    ValueError
+        - If `q` is not greater than 0.
+        - If input arrays are not all one-dimensional.
+        - If `temperature` is negative.
+
+    """
     if not (q > 0):
         raise ValueError("Momentum transfer `q` must be greater than 0!")
     if not is_all_array_1d(w, freq_dos, density_of_states):
@@ -64,6 +94,47 @@ def sqw_ga_model(
     correction: Callable[[Array1D[np.floating], Array1D[np.floating]], Array1D[np.floating]] | None = None,
     logger: Callable[[str], None] | None = print,
 ) -> tuple[Array1D[np.double], Array1D[np.floating]]:
+    """Calculate Scattering function S(q,w) using Gaussian Approximation (GA) model.
+
+    Parameters
+    ----------
+    q : float
+        Momentum transfer in units of 1/Angstrom.
+    time : Array1D[np.floating]
+        Time sampling points in units of seconds.
+    width_func : Array1D[np.inexact]
+        Width function (Gamma(t)) values corresponding to `time`, in units of
+        Angstrom^2.
+    window : bool, optional
+        Whether to apply a Hanning window to the Self-Intermediate Scattering
+        Function (SISF) before Fourier transform, by default False.
+    correction : Callable[[Array1D[np.floating], Array1D[np.floating]], Array1D[np.floating]] | None, optional
+        A correction function to apply to the raw S(q,w) after Fourier
+        transform, by default None.
+    logger : Callable[[str], None] | None, optional
+        A logging function to output progress messages, by default print.
+
+    Returns
+    -------
+    tuple[Array1D[np.floating], Array1D[np.floating]]
+        Tuple containing angular frequency sampling points (omega) and
+        calculated S(q,w) values.
+
+    Raises
+    ------
+    ValueError
+        - If `q` is not greater than 0.
+        - If input arrays are not all one-dimensional.
+        - If `time` array is not evenly spaced.
+        - If `time` and `width_func` arrays do not have the same length.
+
+    Notes
+    -----
+    Parameter `correction` is used for correct the spectrum aliasing effect due
+    to finite time sampling. If the input width function satisfies the Nyquist
+    criterion for the desired frequency range, no correction is needed.
+
+    """
     if not (q > 0):
         raise ValueError("Momentum transfer `q` must be greater than 0!")
     if not is_all_array_1d(time, width_func):
@@ -143,6 +214,52 @@ def sqw_gaaqc_model(
     correction: Callable[[Array1D[np.floating], Array1D[np.floating]], Array1D[np.floating]] | None = None,
     logger: Callable[[str], None] | None = print,
 ) -> tuple[Array1D[np.floating], Array1D[np.floating]]:
+    """Calculate Scattering function S(q,w) using GA-Assisted Quantum Correction (GAAQC) model.
+
+    Parameters
+    ----------
+    q : float
+        Momentum transfer in units of 1/Angstrom.
+    time_ga : Array1D[np.floating]
+        Time sampling points for width functions in units of seconds.
+    width_func_qtm : Array1D[np.complexfloating]
+        Quantum width function (Gamma_qtm(t)) values corresponding to `time_ga`, in units of Angstrom^2.
+    width_func_cls : Array1D[np.floating
+        Classical width function (Gamma_cls(t)) values corresponding to `time_ga`, in units of Angstrom^2.
+    freq_md : Array1D[np.floating]
+        Frequency sampling points from Molecular Dynamics (MD) simulation S(q,w), in units of rad/s.
+    sqw_md : Array1D[np.floating]
+        S(q,w) values from Molecular Dynamics (MD) simulation corresponding to `freq_md`.
+    window : bool, optional
+        Whether to apply a Hanning window to the Self-Intermediate Scattering Function (SISF) before Fourier transform,
+        by default False.
+    correction : Callable[[Array1D[np.floating], Array1D[np.floating]], Array1D[np.floating]] | None, optional
+        A correction function to apply to the raw S(q,w) after convolution,
+        by default None.
+    logger : Callable[[str], None] | None, optional
+        A logging function to output progress messages, by default print.
+
+    Returns
+    -------
+    tuple[Array1D[np.floating], Array1D[np.floating]]
+        Tuple containing angular frequency sampling points (omega) and calculated S(q,w) values.
+
+    Raises
+    ------
+    ValueError
+        - If `q` is not greater than 0.
+        - If input arrays are not all one-dimensional.
+        - If `time_ga` and `freq_md` arrays are not evenly spaced.
+        - If `time_ga`, `width_func_qtm` and `width_func_cls` arrays do not have the same length.
+        - If `freq_md` and `sqw_md` arrays do not have the same length.
+
+    Notes
+    -----
+    Parameter `correction` is used for correct the spectrum aliasing effect due
+    to finite time sampling. If the input width functions satisfy the Nyquist
+    criterion for the desired frequency range, no correction is needed.
+
+    """
     if not (q > 0):
         raise ValueError("Momentum transfer `q` must be greater than 0!")
     if not is_all_array_1d(time_ga, width_func_qtm, width_func_cls, freq_md, sqw_md):
@@ -153,7 +270,7 @@ def sqw_gaaqc_model(
         raise ValueError("Time, quantum width function and classical width function arrays must have the same length!")
     if freq_md.size != sqw_md.size:
         raise ValueError("Frequency and MD S(q,w) arrays must have the same length!")
-    
+
     if logger:
         logger(f"Calculating S(q,w) with GAAQC model ({q = :.2f} 1/Ang)...")
 
