@@ -502,6 +502,11 @@ dependencies = [
     { name = "scipy" },
 ]
 
+[package.optional-dependencies]
+vdos2gamma = [
+    { name = "h5py" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "coverage" },
@@ -514,9 +519,11 @@ script = [
 
 [package.metadata]
 requires-dist = [
+    { name = "h5py", marker = "extra == 'vdos2gamma'", specifier = ">=3.14.0" },
     { name = "numpy", specifier = ">=2.3.2" },
     { name = "scipy", specifier = ">=1.16.1" },
 ]
+provides-extras = ["vdos2gamma"]
 
 [package.metadata.requires-dev]
 dev = [

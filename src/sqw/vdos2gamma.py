@@ -3,15 +3,20 @@
 import argparse
 import bisect
 import ctypes
+import platform
 import sys
 import time
 from pathlib import Path
 
-import h5py
 import numpy as np
 from numpy.typing import NDArray
 
 from sqw.consts import HBAR
+
+try:
+    import h5py
+except ImportError:
+    sys.exit("Install optional dependency group [gamma] to use this script.")
 
 
 def conv_omega_to_time(tsize: int, dt: float, negative_axis: bool = True) -> tuple[float, np.ndarray]:
@@ -63,7 +68,15 @@ def load_h5_vdos(filename: str, omega_path: str, vdos_path: str) -> tuple[np.nda
 
 def load_filon_lib() -> ctypes.CDLL:
     """Load the Filon integration C library."""
-    lib_path = Path(__file__).parent / "libfilon.so"
+    lib_path = Path(__file__).parent / "_filon/libfilon"
+    match platform.system():
+        case "Linux":
+            lib_path = lib_path.with_suffix(".so")
+        case "Darwin":
+            lib_path = lib_path.with_suffix(".dylib")
+        case "Windows":
+            lib_path = lib_path.with_suffix(".dll")
+
     if not lib_path.exists():
         raise FileNotFoundError(f"C library not found: {lib_path}")
 
@@ -191,35 +204,39 @@ def compute_gamma(
 
 
 def save_gamma_h5(
-    filename: str, time_vec: np.ndarray, g_cls: np.ndarray, g_real: np.ndarray, g_imag: np.ndarray
+    filename: str,
+    time_vec: np.ndarray,
+    g_cls: np.ndarray,
+    g_real: np.ndarray,
+    g_imag: np.ndarray,
+    ds_names: dict[str, str],
 ) -> None:
     """Save computed gamma data to HDF5 file."""
     with h5py.File(filename, "w") as f0:
-        f0.create_dataset("time_vec", data=time_vec, compression="gzip")
-        f0.create_dataset("gamma_qtm_real", data=g_real, compression="gzip")
-        f0.create_dataset("gamma_qtm_imag", data=g_imag, compression="gzip")
-        f0.create_dataset("gamma_cls", data=g_cls, compression="gzip")
+        f0.create_dataset(ds_names["time"], data=time_vec, compression="gzip")
+        f0.create_dataset(ds_names["real"], data=g_real, compression="gzip")
+        f0.create_dataset(ds_names["imag"], data=g_imag, compression="gzip")
+        f0.create_dataset(ds_names["cls"], data=g_cls, compression="gzip")
 
 
 def run_once(
     lib: ctypes.CDLL,
     input_fname: str,
-    element: str,
+    omega_ds: str,
+    vdos_ds: str,
     output_fname: str,
     temperature: float,
     mass_num: int,
     size_shrink_fact: int,
+    ds_names: dict[str, str],
     emax_vdos: float = 1.0,
 ) -> None:
     """Run gamma computation for a single element and save results."""
-    omega_ds = f"inc_omega_{element}"
-    vdos_ds = f"inc_vdos_{element}"
-
     fre, dos = load_h5_vdos(input_fname, omega_ds, vdos_ds)
     fre, dos = crop_vdos(fre, dos, e_max=emax_vdos)
 
     time_vec, g_cls, g_real, g_imag = compute_gamma(lib, fre, dos, temperature, mass_num, size_shrink_fact)
-    save_gamma_h5(output_fname, time_vec, g_cls, g_real, g_imag)
+    save_gamma_h5(output_fname, time_vec, g_cls, g_real, g_imag, ds_names)
 
 
 def parse_args() -> argparse.Namespace:
@@ -253,13 +270,20 @@ def parse_args() -> argparse.Namespace:
         help="comma-separated output gamma filenames",
     )
     parser.add_argument(
-        "-e",
-        "--element",
+        "--omega-ds",
         action="store",
         type=str,
         default="",
-        dest="ele",
-        help="comma-separated elements (dataset suffix)",
+        dest="omega_ds",
+        help="comma-separated omega dataset names",
+    )
+    parser.add_argument(
+        "--vdos-ds",
+        action="store",
+        type=str,
+        default="",
+        dest="vdos_ds",
+        help="comma-separated vdos dataset names",
     )
     parser.add_argument(
         "-n",
@@ -277,7 +301,39 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=10,
         dest="size_shrink_fact",
-        help="time vector shrinking factor for acceleration",
+        help="time vector shrinking factor for calculation acceleration",
+    )
+    parser.add_argument(
+        "--ds-time",
+        action="store",
+        type=str,
+        default="time_vec",
+        dest="ds_time",
+        help="output dataset name for time vector",
+    )
+    parser.add_argument(
+        "--ds-cls",
+        action="store",
+        type=str,
+        default="gamma_cls",
+        dest="ds_cls",
+        help="output dataset name for classical gamma",
+    )
+    parser.add_argument(
+        "--ds-real",
+        action="store",
+        type=str,
+        default="gamma_qtm_real",
+        dest="ds_real",
+        help="output dataset name for real part of quantum gamma",
+    )
+    parser.add_argument(
+        "--ds-imag",
+        action="store",
+        type=str,
+        default="gamma_qtm_imag",
+        dest="ds_imag",
+        help="output dataset name for imaginary part of quantum gamma",
     )
     return parser.parse_args()
 
@@ -288,36 +344,46 @@ def main() -> int:
     temperature = args.temp
     input_fname = args.in_name
     output_list = str.split(args.out_name, ",") if args.out_name else []
-    elements = str.split(args.ele, ",") if args.ele else []
+    omega_ds_list = str.split(args.omega_ds, ",") if args.omega_ds else []
+    vdos_ds_list = str.split(args.vdos_ds, ",") if args.vdos_ds else []
     nums = [int(x) for x in str.split(args.num, ",") if x]
     size_shrink_fact = args.size_shrink_fact
 
-    if not input_fname or not output_list or not elements or not nums:
-        print("Missing required arguments: input/output/element/num")
+    ds_names = {
+        "time": args.ds_time,
+        "cls": args.ds_cls,
+        "real": args.ds_real,
+        "imag": args.ds_imag,
+    }
+
+    if not input_fname or not output_list or not omega_ds_list or not vdos_ds_list or not nums:
+        print("Missing required arguments: input/output/omega-ds/vdos-ds/num")
         return 2
-    if not (len(output_list) == len(elements) == len(nums)):
-        print("Arguments length mismatch among output/element/num")
+    if not (len(output_list) == len(omega_ds_list) == len(vdos_ds_list) == len(nums)):
+        print("Arguments length mismatch among output/omega-ds/vdos-ds/num")
         return 2
 
     lib = load_filon_lib()
     emax_vdos = 1.0  # unit: eV
 
-    for ele, out_fn, mass_n in zip(elements, output_list, nums, strict=True):
+    for omega_ds, vdos_ds, out_fn, mass_n in zip(omega_ds_list, vdos_ds_list, output_list, nums, strict=True):
         begin = time.time()
         run_once(
             lib,
             input_fname,
-            ele,
+            omega_ds,
+            vdos_ds,
             out_fn,
             float(temperature),
             int(mass_n),
             int(size_shrink_fact),
+            ds_names,
             emax_vdos,
         )
-        print("finish time:", time.time() - begin, "element =", ele)
+        print("finish time:", time.time() - begin, "dataset =", vdos_ds)
 
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

@@ -8,7 +8,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from sqw.consts import HBAR, KB, PI
-from sqw.typing import Array1D
+from sqw.typing_ import Array1D
 
 
 def read_gamma_data(

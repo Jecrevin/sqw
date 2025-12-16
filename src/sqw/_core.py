@@ -15,7 +15,7 @@ from ._math import (
     trim_function,
 )
 from .consts import HBAR, KB, NEUTRON_MASS, PI
-from .typing import Array1D
+from .typing_ import Array1D
 
 
 def sqw_stc_model(

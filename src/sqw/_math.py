@@ -5,7 +5,7 @@ from numpy.typing import NDArray
 from scipy.fft import fft, fftfreq, fftshift, rfft
 from scipy.signal import fftconvolve
 
-from .typing import Array1D
+from .typing_ import Array1D
 
 
 def is_all_array_1d(*arrays: NDArray[Any]) -> bool:

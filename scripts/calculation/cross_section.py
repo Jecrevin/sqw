@@ -13,7 +13,7 @@ from scipy.interpolate import RectBivariateSpline
 
 from sqw import sqw_ga_model, sqw_gaaqc_model
 from sqw.consts import HBAR, NEUTRON_MASS
-from sqw.typing import Array1D
+from sqw.typing_ import Array1D
 
 
 def angle_to_momentum_transfer(angle: float, energy_in: float, energy_out: float) -> float:
