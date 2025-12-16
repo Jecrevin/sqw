@@ -28,7 +28,11 @@ constexpr double const_boltzmann = 8.6173303e-5;
 static void s2p_1_s2p(unsigned x_panels, double* xVec, double* yVec,
                       unsigned t_length, double* tVec, double* s2p_1_Vec,
                       double* s2p_Vec) {
+#ifdef _MSC_VER
+#pragma omp parallel for
+#else
 #pragma omp parallel for simd
+#endif
   for (auto i = 0; i < t_length; i++) {
     double time = tVec[i];
     StableSum sum1, sum2;
@@ -48,7 +52,11 @@ static void s2p_1_s2p(unsigned x_panels, double* xVec, double* yVec,
 static void c2p_1_c2p(unsigned x_panels, double* xVec, double* yVec,
                       unsigned t_length, double* tVec, double* c2p_1_Vec,
                       double* c2p_Vec) {
+#ifdef _MSC_VER
+#pragma omp parallel for
+#else
 #pragma omp parallel for simd
+#endif
   for (auto i = 0; i < t_length; i++) {
     double time = tVec[i];
     StableSum sum1, sum2;
@@ -72,7 +80,11 @@ static void alpha_beta_gamma(unsigned theta_length, double* thetaVec,
                              double* alphaVec, double* betaVec,
                              double* gammaVec) {
   double theta = 0.0;
+#ifdef _MSC_VER
+#pragma omp parallel for
+#else
 #pragma omp parallel for simd
+#endif
   for (auto i = 0; i < theta_length; i++) {
     theta = thetaVec[i];
     double theta2 = theta * theta;
@@ -123,7 +135,11 @@ static void sin_integral(unsigned x_panels, double* xVec, double* yVec,
   s2p_1_s2p(x_panels, xVec, yVec, t_length, tVec, s2p_1, s2p);
 
   int lastIdx = 2 * x_panels;
+#ifdef _MSC_VER
+#pragma omp parallel for
+#else
 #pragma omp parallel for simd
+#endif
   for (auto i = 0; i < t_length; i++) {
     double part_1 = alpha[i] * (yVec[0] * cos(tVec[i] * xVec[0]) -
                                 yVec[lastIdx] * cos(tVec[i] * xVec[lastIdx]));
@@ -155,7 +171,11 @@ static void cos_integral(unsigned x_panels, double* xVec, double* yVec,
   c2p_1_c2p(x_panels, xVec, yVec, t_length, tVec, c2p_1, c2p);
 
   int lastIdx = 2 * x_panels;
+#ifdef _MSC_VER
+#pragma omp parallel for
+#else
 #pragma omp parallel for simd
+#endif
   for (auto i = 0; i < t_length; i++) {
     // std::cout<<alpha[i]<<";"<<beta[i]<<";"<<gamma[i]<<std::endl;
     double part_1 = alpha[i] * (yVec[lastIdx] * sin(tVec[i] * xVec[lastIdx]) -
@@ -307,7 +327,11 @@ static void gamma_func(unsigned massNum, double temperature, unsigned x_panels,
       const_boltzmann * temperature / (const_neutron_mass_evc2 * massNum);
   double hbar_m = const_hbar / (const_neutron_mass_evc2 * massNum);
   double hbarbeta = const_hbar / const_boltzmann / temperature;
+#ifdef _MSC_VER
+#pragma omp parallel for
+#else
 #pragma omp parallel for simd
+#endif
   for (auto j = 0; j < (2 * x_panels + 1); j++) {
     double i_omega_2 = 1. / (xVec[j] * xVec[j]);
     long double omegat = xVec[j] * time;
