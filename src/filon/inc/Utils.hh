@@ -34,11 +34,8 @@ class StableSum {
 #ifdef __cplusplus
 extern "C" {
 #endif
-// wrapper of std::vector in C and python
 void* std_vector_fromArray(unsigned n, void* v);
 void* std_vector_new();
-// Minimal C-compatible std::vector helpers (unused by Filon, removed)
-
 #ifdef __cplusplus
 }
 #endif
