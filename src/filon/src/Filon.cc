@@ -1,5 +1,8 @@
 #include "Filon.hh"
 
+#ifdef _MSC_VER
+#define _USE_MATH_DEFINES
+#endif
 #include <math.h>
 #include <stdlib.h>
 
