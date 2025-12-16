@@ -2,7 +2,7 @@ name: build-filon
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, ci_test]
   pull_request:
   workflow_dispatch:
 
