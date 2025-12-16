@@ -17,11 +17,10 @@ constexpr double gamma_limit = 4. / 3;
 constexpr double i_4725 = 1. / 4725;
 constexpr double i_315 = 1. / 315;
 constexpr double i_45 = 1. / 45;
-constexpr long double const_planck = 4.13566769692386 * pow(10, -15);
+constexpr long double const_planck = 4.13566769692386e-15L;
 constexpr long double const_hbar = const_planck * 0.5 / M_PI;
-constexpr long double const_neutron_mass_evc2 =
-    1.0454075098625835 * pow(10, -28);
-constexpr double const_boltzmann = 8.6173303 * pow(10, -5);
+constexpr long double const_neutron_mass_evc2 = 1.0454075098625835e-28L;
+constexpr double const_boltzmann = 8.6173303e-5;
 
 static void s2p_1_s2p(unsigned x_panels, double* xVec, double* yVec,
                       unsigned t_length, double* tVec, double* s2p_1_Vec,
