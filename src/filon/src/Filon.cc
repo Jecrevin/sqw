@@ -1,8 +1,5 @@
 #include "Filon.hh"
 
-#ifdef _MSC_VER
-#define _USE_MATH_DEFINES
-#endif
 #include <math.h>
 #include <stdlib.h>
 
@@ -23,7 +20,7 @@ constexpr double i_45 = 1. / 45;
 constexpr long double const_planck = 4.13566769692386e-15L;
 constexpr long double const_hbar = const_planck * 0.5 / M_PI;
 constexpr long double const_neutron_mass_evc2 = 1.0454075098625835e-28L;
-constexpr double const_boltzmann = 8.6173303e-5;
+constexpr double const_boltzmann = 8.6173303e-5L;
 
 static void s2p_1_s2p(unsigned x_panels, double* xVec, double* yVec,
                       unsigned t_length, double* tVec, double* s2p_1_Vec,
@@ -32,6 +29,8 @@ static void s2p_1_s2p(unsigned x_panels, double* xVec, double* yVec,
   for (auto i = 0; i < t_length; i++) {
     double time = tVec[i];
     StableSum sum1, sum2;
+    // double sum1=0.0;
+    // double sum2=0.0;
     double part_2 =
         -0.5 * (yVec[0] * sin(time * xVec[0]) +
                 yVec[2 * x_panels] * sin(time * xVec[2 * x_panels]));
@@ -68,9 +67,8 @@ static void c2p_1_c2p(unsigned x_panels, double* xVec, double* yVec,
   }
 }
 
-static void alpha_beta_gamma(unsigned theta_length, double* thetaVec,
-                             double* alphaVec, double* betaVec,
-                             double* gammaVec) {
+void alpha_beta_gamma(unsigned theta_length, double* thetaVec, double* alphaVec,
+                      double* betaVec, double* gammaVec) {
   double theta = 0.0;
 #pragma omp parallel for simd
   for (auto i = 0; i < theta_length; i++) {
@@ -106,8 +104,8 @@ static void alpha_beta_gamma(unsigned theta_length, double* thetaVec,
   }
 }
 
-static void sin_integral(unsigned x_panels, double* xVec, double* yVec,
-                         unsigned t_length, double* tVec, double* sinVec) {
+void sin_integral(unsigned x_panels, double* xVec, double* yVec,
+                  unsigned t_length, double* tVec, double* sinVec) {
   double h = xVec[1] - xVec[0];
   double* theta = new double[t_length];
   for (auto i = 0; i < t_length; i++) {
@@ -138,8 +136,8 @@ static void sin_integral(unsigned x_panels, double* xVec, double* yVec,
   delete[] s2p;
 }
 
-static void cos_integral(unsigned x_panels, double* xVec, double* yVec,
-                         unsigned t_length, double* tVec, double* cosVec) {
+void cos_integral(unsigned x_panels, double* xVec, double* yVec,
+                  unsigned t_length, double* tVec, double* cosVec) {
   double h = xVec[1] - xVec[0];
   double* theta = new double[t_length];
   for (auto i = 0; i < t_length; i++) {
@@ -171,8 +169,8 @@ static void cos_integral(unsigned x_panels, double* xVec, double* yVec,
   delete[] c2p;
 }
 
-static void alpha_beta_gamma_single(double theta, double& alpha, double& beta,
-                                    double& gamma) {
+void alpha_beta_gamma_single(double theta, double& alpha, double& beta,
+                             double& gamma) {
   double theta2 = theta * theta;
   double theta3 = theta2 * theta;
   double theta4 = theta3 * theta;
@@ -200,8 +198,8 @@ static void alpha_beta_gamma_single(double theta, double& alpha, double& beta,
     alpha = itheta3 * (theta2 + theta * sin_2theta * 0.5 - 2 * sin2_theta);
   }
 }
-static void s2p_1_s2p_single(unsigned x_panels, double* xVec, double* yVec,
-                             double time, double& s2p_1, double& s2p) {
+void s2p_1_s2p_single(unsigned x_panels, double* xVec, double* yVec,
+                      double time, double& s2p_1, double& s2p) {
   // std::cout<<"start s2p_single"<<std::endl;
   double sum1 = 0.0;
   double sum2 = 0.0;
@@ -221,8 +219,8 @@ static void s2p_1_s2p_single(unsigned x_panels, double* xVec, double* yVec,
   s2p = sum2 + part_2;
   // std::cout<<s2p_1<<";"<<s2p<<std::endl;
 }
-static void c2p_1_c2p_single(unsigned x_panels, double* xVec, double* yVec,
-                             double time, double& c2p_1, double& c2p) {
+void c2p_1_c2p_single(unsigned x_panels, double* xVec, double* yVec,
+                      double time, double& c2p_1, double& c2p) {
   double sum1 = 0.0;
   double sum2 = 0.0;
   double part_2 = -0.5 * (yVec[0] * cos(time * xVec[0]) +
@@ -237,8 +235,8 @@ static void c2p_1_c2p_single(unsigned x_panels, double* xVec, double* yVec,
   c2p = sum2 + part_2;
 }
 
-static void sin_integral_single(unsigned x_panels, double* xVec, double* yVec,
-                                double time, double& sin_single) {
+void sin_integral_single(unsigned x_panels, double* xVec, double* yVec,
+                         double time, double& sin_single) {
   double h = xVec[1] - xVec[0];
   double theta = h * time;
   double alpha = 0.0;
@@ -259,8 +257,8 @@ static void sin_integral_single(unsigned x_panels, double* xVec, double* yVec,
   sin_single = h * (part_1 + part_2 + part_3);
 }
 
-static void cos_integral_single(unsigned x_panels, double* xVec, double* yVec,
-                                double time, double& cos_single) {
+void cos_integral_single(unsigned x_panels, double* xVec, double* yVec,
+                         double time, double& cos_single) {
   double h = xVec[1] - xVec[0];
   double theta = h * time;
   double alpha = 0.0;
@@ -279,24 +277,35 @@ static void cos_integral_single(unsigned x_panels, double* xVec, double* yVec,
 }
 
 // g(r)-1 part
-static void gr_func(double rho, unsigned x_panels, double* xVec, double* yVec,
-                    double r, double* fVec) {
+void gr_func(double rho, unsigned x_panels, double* xVec, double* yVec,
+             double r, double* fVec) {
   // #pragma omp parallel for simd
-  double qmax = xVec[2 * x_panels];
   for (auto j = 0; j < (2 * x_panels + 1); j++) {
     double qr = xVec[j] * r;
-    double factor = sin(M_PI * xVec[j] / qmax) / (M_PI * xVec[j] / qmax);
-    fVec[j] = 0.5 / (M_PI * M_PI) / rho / r * xVec[j] * yVec[j] * factor;
+    fVec[j] = 0.5 / (M_PI * M_PI) / rho / r * xVec[j] * yVec[j];
   }
 }
 
 // cal g(r)-1
-// cal_PDF removed as unused
+void cal_PDF(double rho, unsigned x_panels, double* xVec, double* yVec,
+             unsigned r_length, double* rVec, double* pdfVec) {
+  // ProgressMonitor* moni = new ProgressMonitor("integralGamma", r_length,
+  // 0.1);
+  double* fVec = new double[2 * x_panels + 1];
+  for (auto i = 0; i < r_length; i++) {
+    gr_func(rho, x_panels, xVec, yVec, rVec[i], fVec);
+    // std::cout<<"fvec: "<<fVec[0]<<std::endl;
+    sin_integral_single(x_panels, xVec, fVec, rVec[i], pdfVec[i]);
+    // std::cout<<"pdfvec: "<<pdfVec[0]<<std::endl;
+    // moni->OneTaskCompleted();
+  }
+  delete[] fVec;
+}
 
 // gamma part
-static void gamma_func(unsigned massNum, double temperature, unsigned x_panels,
-                       double* xVec, double* yVec, double time,
-                       double* fVec_cls, double* fVec_real, double* fVec_imag) {
+void gamma_func(unsigned massNum, double temperature, unsigned x_panels,
+                double* xVec, double* yVec, double time, double* fVec_cls,
+                double* fVec_real, double* fVec_imag) {
   /***
   define gamma function
   quantum:
@@ -325,7 +334,7 @@ void cal_integral(unsigned massNum, double temperature, unsigned x_panels,
   /***
   integral range: omege[1:]
   **/
-  ProgressMonitor* moni = new ProgressMonitor("integralGamma", t_length, 0.1);
+  ProgressMonitor* moni = new ProgressMonitor("integralGamma", t_length, 0.01);
   double* fVec_cls = new double[2 * x_panels + 1];
   double* fVec_real = new double[2 * x_panels + 1];
   double* fVec_imag = new double[2 * x_panels + 1];
