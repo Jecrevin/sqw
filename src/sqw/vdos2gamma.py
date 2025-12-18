@@ -146,8 +146,8 @@ def _parse_args():
 def _load_vdos_data(input_file: str, freq_dataset: str, vdos_dataset: str) -> tuple[Array1D, Array1D]:
     try:
         with h5py.File(input_file) as f:
-            freq_data = cast(h5py.Dataset, f[freq_dataset])[:]
-            vdos_data = cast(h5py.Dataset, f[vdos_dataset])[:]
+            freq_data: Array1D = cast(h5py.Dataset, f[freq_dataset])[()]
+            vdos_data: Array1D = cast(h5py.Dataset, f[vdos_dataset])[()]
     except FileNotFoundError as e:
         sys.exit(f"Input file not found: {e}")
     except OSError as e:
