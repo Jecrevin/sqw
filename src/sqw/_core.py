@@ -90,6 +90,7 @@ def sqw_ga_model(
     time: Array1D[np.floating],
     width_func: Array1D[np.inexact],
     *,
+    convolve_thresh: float = 5.0,
     window: bool = False,
     correction: Callable[[Array1D[np.floating], Array1D[np.floating]], Array1D[np.floating]] | None = None,
     logger: Callable[[str], None] | None = print,
@@ -105,6 +106,9 @@ def sqw_ga_model(
     width_func : Array1D[np.inexact]
         Width function (Gamma(t)) values corresponding to `time`, in units of
         Angstrom^2.
+    convolve_thresh : float, optional
+        Threshold of momentum transfer `q` to switch between direct Fourier
+        transform and self-convolution method, by default 5.0 1/Angstrom
     window : bool, optional
         Whether to apply a Hanning window to the Self-Intermediate Scattering
         Function (SISF) before Fourier transform, by default False.
@@ -148,7 +152,13 @@ def sqw_ga_model(
         logger(f"Calculating S(q,w) with Gaussian Approximation model ({q = :.2f} 1/Ang)...")
 
     result = _gaussian_approximation_core(
-        q, tuple(time), tuple(width_func), window=window, correction=correction, logger=logger
+        q,
+        tuple(time),
+        tuple(width_func),
+        convolve_thresh=convolve_thresh,
+        window=window,
+        correction=correction,
+        logger=logger,
     )
 
     if logger:
@@ -163,6 +173,7 @@ def _gaussian_approximation_core(
     time_tpl: tuple[np.floating, ...],
     gamma_tpl: tuple[np.inexact, ...],
     *,
+    convolve_thresh: float,
     window: bool,
     correction: Callable[[Array1D[np.floating], Array1D[np.floating]], Array1D[np.floating]] | None,
     logger: Callable[[str], None] | None,
@@ -173,7 +184,7 @@ def _gaussian_approximation_core(
     if logger:
         logger(f"...calculating {q = :.2f}...")
 
-    if q <= 5:
+    if q <= convolve_thresh:
         sisf = np.exp(-0.5 * q**2 * gamma)  # Self-Intermediate Scattering Function, F(q,t)
         omega, ft_sisf = continuous_fourier_transform(time, sisf * np.hanning(sisf.size) if window else sisf)
         # NOTE: For quantum system, the width function (gamma) is Hermitian
@@ -191,6 +202,7 @@ def _gaussian_approximation_core(
         recur_q,
         time_tpl,
         gamma_tpl,
+        convolve_thresh=convolve_thresh,
         window=window,
         correction=None,  # delay correction after convolution to avoid magnitude issues
         logger=logger,
@@ -210,6 +222,7 @@ def sqw_gaaqc_model(
     freq_md: Array1D[np.floating],
     sqw_md: Array1D[np.floating],
     *,
+    convolve_thresh: float = 5.0,
     window: bool = False,
     correction: Callable[[Array1D[np.floating], Array1D[np.floating]], Array1D[np.floating]] | None = None,
     logger: Callable[[str], None] | None = print,
@@ -230,6 +243,9 @@ def sqw_gaaqc_model(
         Frequency sampling points from Molecular Dynamics (MD) simulation S(q,w), in units of rad/s.
     sqw_md : Array1D[np.floating]
         S(q,w) values from Molecular Dynamics (MD) simulation corresponding to `freq_md`.
+    convolve_thresh : float, optional
+        Threshold of momentum transfer `q` to switch between direct Fourier transform
+        and self-convolution method, by default 5.0 1/Angstrom
     window : bool, optional
         Whether to apply a Hanning window to the Self-Intermediate Scattering Function (SISF) before Fourier transform,
         by default False.
@@ -278,6 +294,7 @@ def sqw_gaaqc_model(
         q,
         tuple(time_ga),
         tuple(width_func_qtm - width_func_cls),
+        convolve_thresh=convolve_thresh,
         window=window,
         correction=None,
         logger=logger,
