@@ -27,7 +27,7 @@ def main() -> None:
     )
     omega_vdos, vdos = read_stc_data(input_dir / "h2o_293k_vdos.h5", keys=["inc_omega_H", "inc_vdos_H"])
 
-    q_vals = np.arange(10, 90, 10)  # unit: Å⁻¹
+    q_vals = np.arange(10, 70, 10)  # unit: Å⁻¹
     temperature = 293.0  # unit: K
 
     assure_db_at_293k = partial(assure_detailed_balance, temperature=temperature)
