@@ -44,13 +44,8 @@ target_include_directories(filon PUBLIC
 # Windows specific: Export all symbols for DLL creation
 if(WIN32)
     set_target_properties(filon PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    set_target_properties(filon PROPERTIES OUTPUT_NAME "libfilon")
 endif()
 
 # Installation rules
-include(GNUInstallDirs)
-install(TARGETS filon
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
-install(DIRECTORY inc/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+# Handled by parent CMakeLists.txt or scikit-build-core configuration

@@ -3,34 +3,26 @@ name = "sqw"
 version = "0.1.0"
 description = "New methodology for calulation of scattering function S(q,w)"
 readme = "README.md"
-authors = [
-    { name = "Haoran Jiang", email = "jianghr@ihep.ac.cn" }
-]
+authors = [{ name = "Haoran Jiang", email = "jianghr@ihep.ac.cn" }]
 requires-python = ">=3.13"
-dependencies = [
-    "numpy>=2.3.2",
-    "scipy>=1.16.1",
-]
+dependencies = ["numpy>=2.3.2", "scipy>=1.16.1"]
 scripts = { "vdos2gamma" = "sqw.vdos2gamma:main" }
 
 [project.optional-dependencies]
-vdos2gamma = [
-    "h5py>=3.14.0",
-]
+vdos2gamma = ["h5py>=3.14.0"]
 
 [build-system]
-requires = ["uv_build>=0.8.10,<0.9.0"]
-build-backend = "uv_build"
+requires = ["scikit-build-core"]
+build-backend = "scikit_build_core.build"
+
+[tool.scikit-build]
+wheel.packages = ["src/sqw"]
+build.verbose = true
+logging.level = "INFO"
 
 [dependency-groups]
-dev = [
-    "coverage>=7.10.4",
-    "ruff>=0.12.9",
-]
-script = [
-    "h5py>=3.14.0",
-    "matplotlib>=3.10.6",
-]
+dev = ["coverage>=7.10.4", "ruff>=0.12.9"]
+script = ["h5py>=3.14.0", "matplotlib>=3.10.6"]
 
 [tool.ruff]
 line-length = 120
@@ -42,14 +34,14 @@ select = [
     "D",  # pydocstyle
     "E",  # pycodestyle (error)
     "F",  # pyflakes
-    "UP",  # pyupgrade
+    "UP", # pyupgrade
     # more strict rules
-    "A",  # flake8-builtins
-    "B",  # flake8-bugbear
+    "A",   # flake8-builtins
+    "B",   # flake8-bugbear
     "FA",  # flake8-future-annotations
-    "C90",  # mccabe
-    "N",  # pep-8 naming convention
-    "NPY",  # NumPy-specific rules
+    "C90", # mccabe
+    "N",   # pep-8 naming convention
+    "NPY", # NumPy-specific rules
 ]
 
 [tool.ruff.lint.per-file-ignores]
