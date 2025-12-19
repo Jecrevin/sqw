@@ -1,388 +1,288 @@
-"""Script to read VDOS from HDF5 and compute gamma using Filon integration."""
+"""Convert VDOS data to Width Function (Gamma) using Filon's method."""
 
 import argparse
-import bisect
 import ctypes
 import platform
 import sys
 import time
 from pathlib import Path
+from typing import cast
 
+import h5py
 import numpy as np
-from numpy.typing import NDArray
+from scipy.interpolate import CubicSpline
 
-from sqw.consts import HBAR
-
-try:
-    import h5py
-except ImportError:
-    sys.exit("Install optional dependency group [gamma] to use this script.")
+from sqw.consts import HBAR, PI
+from sqw.typing_ import Array1D
 
 
-def conv_omega_to_time(tsize: int, dt: float, negative_axis: bool = True) -> tuple[float, np.ndarray]:
-    """Convert omega axis to time axis."""
-    data_range = 2 * np.pi / dt
-    data_itv = data_range / (tsize - 1)
-    data = np.linspace(0.0, data_range, tsize)
-    if negative_axis:
-        data = -np.flip(data)
-    return data_itv, data
+def main():
+    """Parse arguments and run the VDOS to Gamma conversion."""
+    parser = _parse_args()
+    args = parser.parse_args()
 
+    input_file: str = args.input_file
+    freq_dataset, vdos_dataset = args.input_datasets
+    temperature: float = args.temperature
+    num_mass: int = args.num_mass
+    vdos_energy_max: float = args.vdos_energy_max
+    size_shrink_factor: int = args.size_shrink_factor
+    output_file: str = args.output_file
+    output_datasets: list[str] = args.output_dataset
 
-def gen_log_spacing(n: int, est_size: int, double_sized: bool = True) -> np.ndarray:
-    """Generate logarithmically spaced indices for downsampling."""
-    if double_sized:
-        idx = np.logspace(0, np.log10(n // 2), est_size).astype(np.intp)
-        idx = np.unique(idx)
-        upidx = idx + n // 2
-        upidx = np.insert(idx, 0, 0)
-        lowidx = np.flip(upidx[0] - idx)
-        slicing = np.concatenate((lowidx, upidx))
-        slicing -= slicing[0]
-        return slicing
-    idx = np.logspace(0, np.log10(n), est_size).astype(np.intp)
-    idx = np.unique(idx)
-    slicing = np.insert(idx, 0, 0)
-    return slicing
+    print("Loading input VDOS data...")
 
+    raw_freq_data, raw_vdos_data = _load_vdos_data(input_file, freq_dataset, vdos_dataset)
 
-def load_h5_vdos(filename: str, omega_path: str, vdos_path: str) -> tuple[np.ndarray, np.ndarray]:
-    """Load and normalize VDOS from HDF5 file."""
-    with h5py.File(filename, "r") as f:
-        fre: NDArray = f[omega_path][()]  # type: ignore
-        dos: NDArray = f[vdos_path][()]  # type: ignore
+    freq_data = raw_freq_data[raw_freq_data <= vdos_energy_max / HBAR]
+    vdos_data = raw_vdos_data[: freq_data.size] - raw_vdos_data[freq_data.size - 1]
 
-    if np.isnan(dos).any():
-        raise RuntimeError("vdos has NaN values")
+    print("Loading Filon library...")
 
-    # NumPy 2.0 compatibility: prefer trapezoid
-    if hasattr(np, "trapezoid"):
-        scale = np.trapezoid(dos, fre)
-    else:
-        scale = np.trapz(dos, fre)  # noqa: NPY201
-    if scale == 0 or not np.isfinite(scale):
-        raise RuntimeError("vdos normalization failed: zero or non-finite area")
-    dos = dos / scale
-    return fre, dos
-
-
-def load_filon_lib() -> ctypes.CDLL:
-    """Load the Filon integration C library."""
-    lib_path = Path(__file__).parent / "_filon/libfilon"
+    filon_base_path = Path(__file__).parent / "_filon/libfilon"
     match platform.system():
         case "Linux":
-            lib_path = lib_path.with_suffix(".so")
+            filon_path = filon_base_path.with_suffix(".so")
         case "Darwin":
-            lib_path = lib_path.with_suffix(".dylib")
+            filon_path = filon_base_path.with_suffix(".dylib")
         case "Windows":
-            lib_path = lib_path.with_suffix(".dll")
+            filon_path = filon_base_path.with_suffix(".dll")
+        case _:
+            sys.exit("This script only supports Linux, macOS, and Windows currently, sorry for inconvenience.")
+    global filon
+    filon = ctypes.CDLL(filon_path)
+    _add_filon_call_signatures()
 
-    if not lib_path.exists():
-        raise FileNotFoundError(f"C library not found: {lib_path}")
+    print("Starting VDOS to Gamma conversion...")
 
-    lib = ctypes.CDLL(str(lib_path))
-
-    np1d = np.ctypeslib.ndpointer(dtype=np.float64, ndim=1, flags="C_CONTIGUOUS")
-
-    lib.cal_limit.restype = ctypes.c_void_p
-    lib.cal_limit.argtypes = [ctypes.c_int, ctypes.c_double, np1d, np1d, ctypes.c_int, np1d, np1d, np1d, np1d]
-    lib.cal_integral.restype = ctypes.c_void_p
-    lib.cal_integral.argtypes = [
-        ctypes.c_int,
-        ctypes.c_double,
-        ctypes.c_int,
-        np1d,
-        np1d,
-        ctypes.c_int,
-        np1d,
-        np1d,
-        np1d,
-        np1d,
-    ]
-
-    return lib
-
-
-def crop_vdos(freq: np.ndarray, dos: np.ndarray, e_max: float = 1.0) -> tuple[np.ndarray, np.ndarray]:
-    """Crop VDOS at a maximum energy threshold."""
-    thr = e_max / HBAR  # Convert to angular frequency threshold
-    if freq[-1] > thr:
-        idx = np.where(freq >= thr)[0][0]
-        freq = freq[:idx]
-        dos = dos[:idx]
-        dos = dos - dos[-1]
-    return freq, dos
-
-
-def upsample_vdos(freq: np.ndarray, dos: np.ndarray, times: int) -> tuple[np.ndarray, np.ndarray]:
-    """Upsample VDOS by linear interpolation."""
-    if times <= 1:
-        return freq, dos
-    length = freq.size * int(times)
-    freq_new = np.linspace(freq[0], freq[-1], length)
-    dos_new = np.interp(freq_new, freq, dos)
-    return freq_new, dos_new
-
-
-def cal_taylor_limit(
-    lib: ctypes.CDLL, mass_num: int, temperature: float, x: np.ndarray, y: np.ndarray, tarr: np.ndarray
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Calculate Taylor expansion limit part of gamma."""
-    l_cls = np.zeros(tarr.size, dtype=np.float64)
-    l_real = np.zeros(tarr.size, dtype=np.float64)
-    l_imag = np.zeros(tarr.size, dtype=np.float64)
-    lib.cal_limit(int(mass_num), float(temperature), x, y, int(tarr.size), tarr, l_cls, l_real, l_imag)
-    return l_cls, l_real, l_imag
-
-
-def cal_integral_filon(
-    lib: ctypes.CDLL, mass_num: int, temperature: float, x: np.ndarray, y: np.ndarray, tarr: np.ndarray
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Calculate integral part of gamma using Filon method."""
-    if x.size % 2 == 0:
-        x_use = x[1:]
-        y_use = y[1:]
-    else:
-        x_use = x[1:-1]
-        y_use = y[1:-1]
-    panels = (x_use.size - 1) // 2
-
-    i_cls = np.zeros(tarr.size, dtype=np.float64)
-    i_real = np.zeros(tarr.size, dtype=np.float64)
-    i_imag = np.zeros(tarr.size, dtype=np.float64)
-    lib.cal_integral(
-        int(mass_num), float(temperature), int(panels), x_use, y_use, int(tarr.size), tarr, i_cls, i_real, i_imag
+    begin_time = time.time()
+    time_vec = np.linspace(0, 2 * PI / (freq_data[1] - freq_data[0]), freq_data.size * 4)
+    gamma_cls, gamma_qtm_real, gamma_qtm_imag = calculate_gamma_from_vdos(
+        time_vec,
+        freq_data,
+        vdos_data,
+        temperature,
+        num_mass,
+        size_shrink_factor,
     )
-    return i_cls, i_real, i_imag
+    end_time = time.time()
 
+    print(f"VDOS to Gamma conversion completed in {end_time - begin_time:.2f} seconds.")
 
-def cal_gamma_filon(
-    lib: ctypes.CDLL, mass_num: int, temperature: float, x: np.ndarray, y: np.ndarray, tarr: np.ndarray, times: int = 1
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Calculate gamma using Filon integration (with optional upsampling)."""
-    if times and times > 1:
-        x, y = upsample_vdos(x, y, times)
-    l_cls, l_real, l_imag = cal_taylor_limit(lib, mass_num, temperature, x, y, tarr)
-    i_cls, i_real, i_imag = cal_integral_filon(lib, mass_num, temperature, x, y, tarr)
-    return l_cls + i_cls, l_real + i_real, l_imag + i_imag
+    if output_file:
+        print("Saving output Gamma data...")
 
+        try:
+            with h5py.File(output_file, "w") as f:
+                f.create_dataset(output_datasets[0], data=time_vec)
+                f.create_dataset(output_datasets[1], data=gamma_qtm_real)
+                f.create_dataset(output_datasets[2], data=gamma_qtm_imag)
+                f.create_dataset(output_datasets[3], data=gamma_cls)
+        except OSError as e:
+            sys.exit(f"Error writing to output file: {e}")
+        except Exception as e:
+            sys.exit(f"An unexpected error occurred while saving output data: {e}")
 
-def compute_gamma(
-    lib: ctypes.CDLL, freq: np.ndarray, dos: np.ndarray, temperature: float, mass_num: int, size_shrink_fact: int = 10
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Compute gamma from VDOS using Filon integration with optional time vector shrinking."""
-    df = freq[1] - freq[0]
-    _, time_axis = conv_omega_to_time(freq.size * 4, df, negative_axis=False)
-
-    if int(size_shrink_fact) > 1:
-        tmp = 2 * np.pi / df / 10.0
-        idx = bisect.bisect(time_axis.tolist(), tmp)
-        time_p1 = time_axis[:idx]
-        time_p2 = time_axis[idx:]
-
-        shrink_idx = gen_log_spacing(time_p2.size, time_p2.size // int(size_shrink_fact), False)
-        if shrink_idx[-1] == time_p2.size:
-            shrink_idx[-1] -= 1
-        time_p2_shrunk = time_p2[shrink_idx]
-
-        cls1, real1, imag1 = cal_gamma_filon(lib, mass_num, temperature, freq, dos, time_p1, times=10)
-        cls2_s, real2_s, imag2_s = cal_gamma_filon(lib, mass_num, temperature, freq, dos, time_p2_shrunk, times=10)
-
-        # Linear interpolation back to original time_p2 (original used spline,
-        # here np.interp is used to keep dependencies minimal)
-        real2 = np.interp(time_p2, time_p2_shrunk, real2_s)
-        imag2 = np.interp(time_p2, time_p2_shrunk, imag2_s)
-        cls2 = np.interp(time_p2, time_p2_shrunk, cls2_s)
-
-        g_cls = np.concatenate((cls1, cls2))
-        g_real = np.concatenate((real1, real2))
-        g_imag = np.concatenate((imag1, imag2))
+        print(f"Output Gamma data have been saved to '{Path(output_file).resolve()}'.")
     else:
-        g_cls, g_real, g_imag = cal_gamma_filon(lib, mass_num, temperature, freq, dos, time_axis, times=10)
-
-    return time_axis, g_cls, g_real, g_imag
+        return gamma_cls, gamma_qtm_real, gamma_qtm_imag
 
 
-def save_gamma_h5(
-    filename: str,
-    time_vec: np.ndarray,
-    g_cls: np.ndarray,
-    g_real: np.ndarray,
-    g_imag: np.ndarray,
-    ds_names: dict[str, str],
-) -> None:
-    """Save computed gamma data to HDF5 file."""
-    with h5py.File(filename, "w") as f0:
-        f0.create_dataset(ds_names["time"], data=time_vec, compression="gzip")
-        f0.create_dataset(ds_names["real"], data=g_real, compression="gzip")
-        f0.create_dataset(ds_names["imag"], data=g_imag, compression="gzip")
-        f0.create_dataset(ds_names["cls"], data=g_cls, compression="gzip")
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Convert VDOS data to Width Function (Gamma).")
 
-
-def run_once(
-    lib: ctypes.CDLL,
-    input_fname: str,
-    omega_ds: str,
-    vdos_ds: str,
-    output_fname: str,
-    temperature: float,
-    mass_num: int,
-    size_shrink_fact: int,
-    ds_names: dict[str, str],
-    emax_vdos: float = 1.0,
-) -> None:
-    """Run gamma computation for a single element and save results."""
-    fre, dos = load_h5_vdos(input_fname, omega_ds, vdos_ds)
-    fre, dos = crop_vdos(fre, dos, e_max=emax_vdos)
-
-    time_vec, g_cls, g_real, g_imag = compute_gamma(lib, fre, dos, temperature, mass_num, size_shrink_fact)
-    save_gamma_h5(output_fname, time_vec, g_cls, g_real, g_imag, ds_names)
-
-
-def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments."""
-    parser = argparse.ArgumentParser()
+    parser.add_argument("input_file", type=str, help="Path to the input VDOS data file.")
     parser.add_argument(
-        "-i",
-        "--input",
-        action="store",
+        "input_datasets",
         type=str,
-        default="",
-        dest="in_name",
-        help="input HDF5 filename (path included)",
+        nargs=2,
+        metavar=("FREQ_DATASET", "VDOS_DATASET"),
+        help="Names of the datasets in the input file for frequency and VDOS data.",
     )
     parser.add_argument(
         "-t",
         "--temperature",
-        action="store",
         type=float,
-        default=0.0,
-        dest="temp",
-        help="temperature in K",
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        action="store",
-        type=str,
-        default="",
-        dest="out_name",
-        help="comma-separated output gamma filenames",
-    )
-    parser.add_argument(
-        "--omega-ds",
-        action="store",
-        type=str,
-        default="",
-        dest="omega_ds",
-        help="comma-separated omega dataset names",
-    )
-    parser.add_argument(
-        "--vdos-ds",
-        action="store",
-        type=str,
-        default="",
-        dest="vdos_ds",
-        help="comma-separated vdos dataset names",
+        help="Temperature in Kelvin.",
     )
     parser.add_argument(
         "-n",
-        "--num",
-        action="store",
-        type=str,
-        default="1",
-        dest="num",
-        help="comma-separated atom masses (unit: neutron mass count)",
-    )
-    parser.add_argument(
-        "-s",
-        "--sizeShrinkFact",
-        action="store",
+        "--num-mass",
         type=int,
-        default=10,
-        dest="size_shrink_fact",
-        help="time vector shrinking factor for calculation acceleration",
+        default=1,
+        help="Number of neutron masses.",
     )
     parser.add_argument(
-        "--ds-time",
-        action="store",
-        type=str,
-        default="time_vec",
-        dest="ds_time",
-        help="output dataset name for time vector",
+        "--vdos-energy-max",
+        type=float,
+        default=1.0,
+        help="Maximum energy value for VDOS data (in eV). Default is 1.0 eV. (Higher data will be ignored)",
     )
     parser.add_argument(
-        "--ds-cls",
-        action="store",
-        type=str,
-        default="gamma_cls",
-        dest="ds_cls",
-        help="output dataset name for classical gamma",
+        "--size-shrink-factor",
+        type=int,
+        default=1,
+        help="Factor to shrink the size of input data for calculation acceleration. Default is 1 (no shrinking).",
     )
     parser.add_argument(
-        "--ds-real",
-        action="store",
+        "-o",
+        "--output_file",
         type=str,
-        default="gamma_qtm_real",
-        dest="ds_real",
-        help="output dataset name for real part of quantum gamma",
+        help="Path to the output file for the Width Function (Gamma) data.",
     )
     parser.add_argument(
-        "--ds-imag",
-        action="store",
+        "--output_dataset",
         type=str,
-        default="gamma_qtm_imag",
-        dest="ds_imag",
-        help="output dataset name for imaginary part of quantum gamma",
+        nargs=4,
+        metavar=("TIME", "GAMMA_QTM_REAL", "GAMMA_QTM_IMAG", "GAMMA_CLS"),
+        default=["time_vec", "gamma_qtm_real", "gamma_qtm_imag", "gamma_cls"],
+        help="Names of the datasets to create in the output file for time vector, "
+        "real and imaginary parts of Gamma QTM, and Gamma CLS.",
     )
-    return parser.parse_args()
+
+    return parser
 
 
-def main() -> int:
-    """Parse arguments and run gamma computations."""
-    args = parse_args()
-    temperature = args.temp
-    input_fname = args.in_name
-    output_list = str.split(args.out_name, ",") if args.out_name else []
-    omega_ds_list = str.split(args.omega_ds, ",") if args.omega_ds else []
-    vdos_ds_list = str.split(args.vdos_ds, ",") if args.vdos_ds else []
-    nums = [int(x) for x in str.split(args.num, ",") if x]
-    size_shrink_fact = args.size_shrink_fact
+def _load_vdos_data(input_file: str, freq_dataset: str, vdos_dataset: str) -> tuple[Array1D, Array1D]:
+    try:
+        with h5py.File(input_file) as f:
+            freq_data: Array1D = cast(h5py.Dataset, f[freq_dataset])[()]
+            vdos_data: Array1D = cast(h5py.Dataset, f[vdos_dataset])[()]
+    except FileNotFoundError as e:
+        sys.exit(f"Input file not found: {e}")
+    except OSError as e:
+        sys.exit(f"Error opening input file: {e}")
+    except KeyError as e:
+        sys.exit(f"Error accessing dataset in input file: {e}")
+    except Exception as e:
+        sys.exit(f"An unexpected error occurred while loading input data: {e}")
 
-    ds_names = {
-        "time": args.ds_time,
-        "cls": args.ds_cls,
-        "real": args.ds_real,
-        "imag": args.ds_imag,
-    }
+    return freq_data, vdos_data
 
-    if not input_fname or not output_list or not omega_ds_list or not vdos_ds_list or not nums:
-        print("Missing required arguments: input/output/omega-ds/vdos-ds/num")
-        return 2
-    if not (len(output_list) == len(omega_ds_list) == len(vdos_ds_list) == len(nums)):
-        print("Arguments length mismatch among output/omega-ds/vdos-ds/num")
-        return 2
 
-    lib = load_filon_lib()
-    emax_vdos = 1.0  # unit: eV
+def _add_filon_call_signatures() -> None:
+    np1darray = np.ctypeslib.ndpointer(dtype=np.float64, ndim=1, flags="C_CONTIGUOUS")
+    filon.cal_limit.restype = ctypes.c_void_p
+    filon.cal_limit.argtypes = [
+        ctypes.c_int,
+        ctypes.c_double,
+        np1darray,
+        np1darray,
+        ctypes.c_int,
+        np1darray,
+        np1darray,
+        np1darray,
+        np1darray,
+    ]
 
-    for omega_ds, vdos_ds, out_fn, mass_n in zip(omega_ds_list, vdos_ds_list, output_list, nums, strict=True):
-        begin = time.time()
-        run_once(
-            lib,
-            input_fname,
-            omega_ds,
-            vdos_ds,
-            out_fn,
-            float(temperature),
-            int(mass_n),
-            int(size_shrink_fact),
-            ds_names,
-            emax_vdos,
+    filon.cal_integral.restype = ctypes.c_void_p
+    filon.cal_integral.argtypes = [
+        ctypes.c_int,
+        ctypes.c_double,
+        ctypes.c_int,
+        np1darray,
+        np1darray,
+        ctypes.c_int,
+        np1darray,
+        np1darray,
+        np1darray,
+        np1darray,
+    ]
+
+
+def calculate_gamma_from_vdos(
+    time_vec: Array1D, freq: Array1D, vdos: Array1D, temperature: float, num_mass: int, size_shrink_factor: int
+) -> tuple[Array1D, Array1D, Array1D]:
+    """Calculate the Width Function (Gamma) from VDOS data using Filon's method."""
+    if size_shrink_factor > 1:
+        time_thresh = 2 * PI / (freq[1] - freq[0]) / 10
+        time_part1 = time_vec[time_vec <= time_thresh]
+        time_part2 = time_vec[time_vec > time_thresh]
+        shrinked_time_part2 = _log_shrink_vector(time_vec[time_vec > time_thresh], size_shrink_factor)
+
+        cls_part1, qtm_real_part1, qtm_imag_part1 = _calculate_gamma_core(
+            time_part1, freq, vdos, upsample_factor=10, num_mass=num_mass, temperature=temperature
         )
-        print("finish time:", time.time() - begin, "dataset =", vdos_ds)
+        shrinked_cls_part2, shrinked_qtm_real_part2, shrinked_qtm_imag_part2 = _calculate_gamma_core(
+            shrinked_time_part2, freq, vdos, upsample_factor=10, num_mass=num_mass, temperature=temperature
+        )
 
-    return 0
+        cls_part2 = CubicSpline(shrinked_time_part2, shrinked_cls_part2)(time_part2)
+        qtm_real_part2 = CubicSpline(shrinked_time_part2, shrinked_qtm_real_part2)(time_part2)
+        qtm_imag_part2 = CubicSpline(shrinked_time_part2, shrinked_qtm_imag_part2)(time_part2)
+
+        gamma_cls = np.concatenate([cls_part1, cls_part2])
+        gamma_qtm_real = np.concatenate([qtm_real_part1, qtm_real_part2])
+        gamma_qtm_imag = np.concatenate([qtm_imag_part1, qtm_imag_part2])
+    else:
+        gamma_cls, gamma_qtm_real, gamma_qtm_imag = _calculate_gamma_core(
+            time_vec, freq, vdos, upsample_factor=10, num_mass=num_mass, temperature=temperature
+        )
+
+    return gamma_cls, gamma_qtm_real, gamma_qtm_imag
+
+
+def _log_shrink_vector(vec: Array1D, shrink_factor: int) -> Array1D:
+    idxs = np.unique(np.logspace(0, np.log10(vec.size), vec.size // shrink_factor, dtype=np.intp) - np.intp(1))
+    return vec[idxs].copy()
+
+
+def _calculate_gamma_core(
+    time_vec: Array1D, freq: Array1D, dos: Array1D, /, upsample_factor: int, num_mass: int, temperature: float
+) -> tuple[Array1D, Array1D, Array1D]:
+    x, y = cubic_spline_upsample(freq, dos, upsample_factor)
+
+    limit_cls = np.zeros_like(time_vec)
+    limit_qtm_real = np.zeros_like(time_vec)
+    limit_qtm_imag = np.zeros_like(time_vec)
+
+    # NOTE: This changes the `limit_*` arrays in place.
+    filon.cal_limit(num_mass, temperature, x, y, time_vec.size, time_vec, limit_cls, limit_qtm_real, limit_qtm_imag)
+
+    x = x[1:] if x.size % 2 == 0 else x[1:-1]
+    y = y[1:] if y.size % 2 == 0 else y[1:-1]
+    panels = (x.size - 1) // 2
+
+    integral_cls = np.zeros_like(time_vec)
+    integral_qtm_real = np.zeros_like(time_vec)
+    integral_qtm_imag = np.zeros_like(time_vec)
+
+    # NOTE: This changes the `integral_*` arrays in place.
+    filon.cal_integral(
+        num_mass, temperature, panels, x, y, time_vec.size, time_vec, integral_cls, integral_qtm_real, integral_qtm_imag
+    )
+
+    gamma_cls = limit_cls + integral_cls
+    gamma_qtm_real = limit_qtm_real + integral_qtm_real
+    gamma_qtm_imag = limit_qtm_imag + integral_qtm_imag
+
+    return gamma_cls, gamma_qtm_real, gamma_qtm_imag
+
+
+def cubic_spline_upsample(x: Array1D, y: Array1D, upsample_factor: int) -> tuple[Array1D, Array1D]:
+    """Upsample the given x and y data using cubic spline interpolation.
+
+    Parameters
+    ----------
+    x : Array1D
+        The x data points.
+    y : Array1D
+        The y data points.
+    upsample_factor : int
+        The factor by which to upsample the data.
+
+    Returns
+    -------
+    Array1D, Array1D
+        The upsampled x and y data points.
+
+    """
+    if upsample_factor <= 1:
+        return x, y
+    spline = CubicSpline(x, y)
+    x_new = np.linspace(x[0], x[-1], x.size * upsample_factor)
+    y_new = spline(x_new)
+    return x_new, y_new  # type: ignore
 
 
 if __name__ == "__main__":

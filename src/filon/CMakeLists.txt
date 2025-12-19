@@ -1,24 +1,51 @@
 cmake_minimum_required(VERSION 3.10)
-project(filon_cpp CXX)
+project(Filon VERSION 1.0.0 LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 14)
+# Set C++ Standard
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Position Independent Code is needed for shared libraries
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Find OpenMP
 find_package(OpenMP REQUIRED)
 
-include_directories(inc)
-include_directories(src)
+# Define sources
+set(SOURCES
+    src/Filon.cc
+    src/ProgressMonitor.cc
+    src/Utils.cc
+)
 
-file(GLOB SOURCES "src/*.cc")
+# Define headers (for IDEs)
+set(HEADERS
+    inc/Filon.hh
+    inc/ProgressMonitor.hh
+    inc/Utils.hh
+    inc/Utils.icc
+    inc/constants.hh
+)
 
-add_library(filon SHARED ${SOURCES})
+# Create shared library
+add_library(filon SHARED ${SOURCES} ${HEADERS})
 
+# Link OpenMP
 if(OpenMP_CXX_FOUND)
-    target_link_libraries(filon PUBLIC OpenMP::OpenMP_CXX)
+    target_link_libraries(filon PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
-target_compile_definitions(filon PRIVATE FILON_EXPORTS)
+# Include directories
+target_include_directories(filon PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
+    $<INSTALL_INTERFACE:include>
+)
 
-# Ensure the output name is consistent (libfilon.* across platforms)
-set_target_properties(filon PROPERTIES OUTPUT_NAME "filon" PREFIX "lib")
+# Windows specific: Export all symbols for DLL creation
+if(WIN32)
+    set_target_properties(filon PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    set_target_properties(filon PROPERTIES OUTPUT_NAME "libfilon")
+endif()
+
+# Installation rules
+# Handled by parent CMakeLists.txt or scikit-build-core configuration

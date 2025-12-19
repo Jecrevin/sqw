@@ -23,7 +23,7 @@ def main() -> None:
 
     fig_dir.mkdir(parents=True, exist_ok=True)
 
-    q_vals = np.arange(10, 90, 10)  # unit: Å⁻¹
+    q_vals = np.arange(10, 70, 10)  # unit: Å⁻¹
 
     plt_style_setup()
 

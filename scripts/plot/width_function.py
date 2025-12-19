@@ -43,6 +43,8 @@ def main() -> None:
     ax.plot(time / constants.pico, np.abs(gamma_qtm), label="Amplitude")
     ax.plot(time / constants.pico, gamma_qtm.real, label="Real Part", ls="--")
     ax.plot(time / constants.pico, gamma_qtm.imag, label="Imaginary Part", ls="--")
+    ax.set_xlim((-1, 1))
+    ax.set_ylim((-0.05, 1.0))
     ax.legend(loc="lower right", bbox_to_anchor=(0, 0.05, 1, 1))
     ax.set_xlabel("Time (ps)")
     ax.set_ylabel("Width Function ($\\mathrm{\\AA}^2$)")

@@ -26,8 +26,10 @@ def main() -> None:
     plt_style_setup()
 
     fig1, ax1 = plt.subplots()
-    ax1.plot(omega * HBAR, fft_res)
-    ax1.set_yscale("symlog", linthresh=1e-27)
+    ax1.plot(omega * HBAR, fft_res, label="FFT result")
+    ax1.plot(omega * HBAR, cdft_res, linestyle="dashed", label="Detailed Balance")
+    ax1.set_yscale("log")
+    ax1.legend()
     ax1.set_xlabel("Energy Transfer (eV)")
     ax1.set_ylabel("Scattering Function (b·eV⁻¹·Sr⁻¹·ℏ⁻¹)")
     fig1.tight_layout()
