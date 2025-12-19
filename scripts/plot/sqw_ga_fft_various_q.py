@@ -33,7 +33,7 @@ def main() -> None:
     for i, q in enumerate(q_vals):
         ax.plot(omega * HBAR, sqw_ga_fft_various_q[:, i], label=f"Q={q} Å⁻¹")
 
-    ax.set_xlabel("Energy (eV)")
+    ax.set_xlabel("Energy Transfer(eV)")
     ax.set_ylabel("Scattering Function (b·eV⁻¹·Sr⁻¹·ℏ⁻¹)")
     ax.legend(loc="upper left")
 
